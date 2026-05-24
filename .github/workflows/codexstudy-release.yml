@@ -1,9 +1,12 @@
-# Build CodexStudy desktop installers on tag push or manual dispatch.
-# Artifacts: Windows NSIS and Linux AppImage.
+# CodexStudy desktop installers.
+# - push main / workflow_dispatch: Windows NSIS only (no macOS)
+# - push tag v*: Windows NSIS + Linux AppImage (no macOS)
 name: CodexStudy Release Build
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
   workflow_dispatch:
@@ -17,25 +20,70 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  build:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
+  build-windows:
+    name: Windows x64 (NSIS)
+    if: github.repository == 'YangJin-Lei/codexStudy'
+    runs-on: windows-latest
     timeout-minutes: 150
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Windows x64 (NSIS)
-            os: windows-latest
-            bundle: nsis
-            tauri_config: src-tauri/tauri.windows.conf.json
-            artifact_glob: desktop/src-tauri/target/release/bundle/nsis/*
-          - name: Linux (AppImage)
-            os: ubuntu-22.04
-            bundle: appimage
-            tauri_config: src-tauri/tauri.conf.json
-            artifact_glob: desktop/src-tauri/target/release/bundle/appimage/*
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            codex-rs
+            desktop/src-tauri
+
+      - name: Install workspace dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Doctor
+        working-directory: desktop
+        run: node scripts/doctor.mjs --strict
+
+      - name: Prepare bundled Codex CLI
+        working-directory: desktop
+        run: corepack pnpm prepare:bundled-codex --release
+
+      - name: Prepare bundled Computer Use
+        working-directory: desktop
+        run: corepack pnpm prepare:bundled-computer-use --release
+
+      - name: Build Tauri NSIS bundle
+        working-directory: desktop
+        run: >
+          corepack pnpm exec tauri build
+          --bundles nsis
+          --config src-tauri/tauri.windows.conf.json
+        env:
+          CI: true
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: codexstudy-nsis-Windows
+          path: desktop/src-tauri/target/release/bundle/nsis/*
+          if-no-files-found: error
+          retention-days: 30
+
+  build-linux:
+    name: Linux (AppImage)
+    if: github.repository == 'YangJin-Lei/codexStudy' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,7 +107,6 @@ jobs:
             desktop/src-tauri
 
       - name: Install Linux system dependencies
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -72,13 +119,7 @@ jobs:
       - name: Install workspace dependencies
         run: corepack pnpm install --frozen-lockfile
 
-      - name: Doctor (Windows)
-        if: runner.os == 'Windows'
-        working-directory: desktop
-        run: node scripts/doctor.mjs --strict
-
-      - name: Doctor (Unix)
-        if: runner.os != 'Windows'
+      - name: Doctor
         working-directory: desktop
         run: sh scripts/doctor.sh --strict
 
@@ -90,19 +131,19 @@ jobs:
         working-directory: desktop
         run: corepack pnpm prepare:bundled-computer-use --release
 
-      - name: Build Tauri bundle
+      - name: Build Tauri AppImage bundle
         working-directory: desktop
         run: >
           corepack pnpm exec tauri build
-          --bundles ${{ matrix.bundle }}
-          --config ${{ matrix.tauri_config }}
+          --bundles appimage
+          --config src-tauri/tauri.conf.json
         env:
           CI: true
 
-      - name: Upload installer artifact
+      - name: Upload Linux installer
         uses: actions/upload-artifact@v4
         with:
-          name: codexstudy-${{ matrix.bundle }}-${{ runner.os }}
-          path: ${{ matrix.artifact_glob }}
+          name: codexstudy-appimage-Linux
+          path: desktop/src-tauri/target/release/bundle/appimage/*
           if-no-files-found: error
           retention-days: 30
