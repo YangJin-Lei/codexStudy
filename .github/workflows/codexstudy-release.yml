@@ -1,5 +1,5 @@
 # Build CodexStudy desktop installers on tag push or manual dispatch.
-# Artifacts: Windows NSIS, macOS .dmg, Linux AppImage.
+# Artifacts: Windows NSIS and Linux AppImage.
 name: CodexStudy Release Build
 
 on:
@@ -30,11 +30,6 @@ jobs:
             bundle: nsis
             tauri_config: src-tauri/tauri.windows.conf.json
             artifact_glob: desktop/src-tauri/target/release/bundle/nsis/*
-          - name: macOS (DMG)
-            os: macos-latest
-            bundle: dmg
-            tauri_config: src-tauri/tauri.conf.json
-            artifact_glob: desktop/src-tauri/target/release/bundle/dmg/*
           - name: Linux (AppImage)
             os: ubuntu-22.04
             bundle: appimage

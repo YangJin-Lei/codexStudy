@@ -16,6 +16,7 @@ type CodexNewStatusCardProps = {
   threadsByWorkspace: Record<string, ThreadSummary[]>;
   activeSession: CodexNewSession | null;
   activeThreadRegistryEntry?: CodexNewThreadRegistryEntry | null;
+  dataPaths: import("../types").CodexNewFrontendState["dataPaths"];
   onOpenProcessWindow: () => void | Promise<void>;
   onOpenTerminalWindow: () => void | Promise<void>;
 };
@@ -29,6 +30,7 @@ export function CodexNewStatusCard({
   threadsByWorkspace,
   activeSession,
   activeThreadRegistryEntry = null,
+  dataPaths,
   onOpenProcessWindow,
   onOpenTerminalWindow,
 }: CodexNewStatusCardProps) {
@@ -110,7 +112,7 @@ export function CodexNewStatusCard({
         ) : null}
       </div>
 
-      {securityEnabled ? <CodexNewDataPathsPanel isChinese={isChinese} /> : null}
+      {securityEnabled ? <CodexNewDataPathsPanel isChinese={isChinese} dataPaths={dataPaths} /> : null}
 
       <div className="codex-new-status-card-actions">
         <button type="button" className="codex-new-mini-button" onClick={() => void onOpenProcessWindow()}>

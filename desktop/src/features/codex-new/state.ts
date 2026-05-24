@@ -156,12 +156,21 @@ function dispatchStateEvent(next: CodexNewFrontendState) {
   );
 }
 
+function codexNewStateContentKey(state: CodexNewFrontendState): string {
+  const { lastUpdatedAt: _lastUpdatedAt, ...content } = state;
+  return JSON.stringify(content);
+}
+
 function writeState(next: CodexNewFrontendState): CodexNewFrontendState {
   const normalized = {
     ...cloneState(next),
     lastUpdatedAt: Date.now(),
   };
   if (typeof window !== "undefined") {
+    const current = readCodexNewState();
+    if (codexNewStateContentKey(current) === codexNewStateContentKey(normalized)) {
+      return current;
+    }
     window.localStorage.setItem(CODEX_NEW_STORAGE_KEY, JSON.stringify(normalized));
     dispatchStateEvent(normalized);
   }
@@ -327,7 +336,12 @@ function focusCodexNewSessionFallback(
 
 export async function refreshCodexNewState(): Promise<CodexNewFrontendState> {
   try {
-    return setCodexNewState(await getCodexNewState());
+    const incoming = await getCodexNewState();
+    const current = readCodexNewState();
+    if (codexNewStateContentKey(current) === codexNewStateContentKey(incoming)) {
+      return current;
+    }
+    return setCodexNewState(incoming);
   } catch (error) {
     console.warn("Failed to refresh codex-new backend state.", { error });
     return readCodexNewState();

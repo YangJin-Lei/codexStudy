@@ -148,6 +148,7 @@ type UseMainAppLayoutSurfacesArgs = {
     securityToggleDisabled: boolean;
     activeSession: import("@/features/codex-new/types").CodexNewSession | null;
     activeThreadRegistryEntry: import("@/features/codex-new/types").CodexNewThreadRegistryEntry | null;
+    dataPaths: import("@/features/codex-new/types").CodexNewFrontendState["dataPaths"];
     onOpenUi: () => void | Promise<void>;
     onToggleSecurity: () => void | Promise<void>;
     onOpenProcessWindow: () => void | Promise<void>;
@@ -870,6 +871,7 @@ function buildGitSurface({
       codexNewThreadsByWorkspace: threadsByWorkspace,
       codexNewActiveSession: codexNew.activeSession,
       codexNewActiveThreadRegistryEntry: codexNew.activeThreadRegistryEntry,
+      codexNewDataPaths: codexNew.dataPaths,
       onOpenCodexNewUi: codexNew.onOpenUi,
       onToggleCodexNewSecurity,
       onOpenCodexNewProcessWindow: codexNew.onOpenProcessWindow,

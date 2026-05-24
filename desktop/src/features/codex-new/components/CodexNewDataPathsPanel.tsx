@@ -1,13 +1,13 @@
 import { requestCodexHomeMigrationPrompt } from "@services/events";
-import { useCodexNewState } from "../hooks/useCodexNewState";
+import type { CodexNewFrontendState } from "../types";
 
 type CodexNewDataPathsPanelProps = {
   isChinese: boolean;
+  dataPaths: CodexNewFrontendState["dataPaths"];
 };
 
-export function CodexNewDataPathsPanel({ isChinese }: CodexNewDataPathsPanelProps) {
-  const state = useCodexNewState();
-  const paths = state.dataPaths;
+export function CodexNewDataPathsPanel({ isChinese, dataPaths }: CodexNewDataPathsPanelProps) {
+  const paths = dataPaths;
 
   if (!paths.codexHome && !paths.codexNewRoot) {
     return null;

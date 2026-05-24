@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { CodexNewFocusThreadPayload } from "@/types";
 import type { ThreadSummary, WorkspaceInfo } from "@/types";
 import {
@@ -41,11 +41,16 @@ export function useCodexNewController({
     if (!activeWorkspace || !activeThreadId) {
       return false;
     }
+    const workspaceArmed = Boolean(state.workspaceSecurity[activeWorkspace.id]);
+    if (!workspaceArmed) {
+      return false;
+    }
     const entry = state.threadRegistry[activeThreadId];
-    return (
-      entry?.workspaceId === activeWorkspace.id && Boolean(entry?.isolatedRoot?.trim())
-    );
-  }, [activeThreadId, activeWorkspace, state.threadRegistry]);
+    if (!entry) {
+      return true;
+    }
+    return entry.workspaceId === activeWorkspace.id;
+  }, [activeThreadId, activeWorkspace, state.threadRegistry, state.workspaceSecurity]);
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -53,6 +58,9 @@ export function useCodexNewController({
     }
     void syncCodexNewViewingContext(activeWorkspace, activeThreadId, activeThreadTitle);
   }, [activeThreadId, activeThreadTitle, activeWorkspace]);
+
+  const lastFocusEmitRef = useRef<string>("");
+  const lastFocusedSessionRef = useRef<string>("");
 
   useEffect(() => {
     if (!activeWorkspace || !activeThreadId) {
@@ -62,8 +70,25 @@ export function useCodexNewController({
       workspaceId: activeWorkspace.id,
       threadId: activeThreadId,
     };
+    const focusKey = `${payload.workspaceId}:${payload.threadId}`;
+    if (lastFocusEmitRef.current === focusKey) {
+      return;
+    }
+    lastFocusEmitRef.current = focusKey;
     void requestCodexNewFocusThread(payload);
   }, [activeThreadId, activeWorkspace?.id]);
+
+  useEffect(() => {
+    if (!activeWorkspace || !activeThreadId || !isSecurityEnabled) {
+      return;
+    }
+    const focusKey = `${activeWorkspace.id}:${activeThreadId}:${activeThreadTitle ?? ""}`;
+    if (lastFocusedSessionRef.current === focusKey) {
+      return;
+    }
+    lastFocusedSessionRef.current = focusKey;
+    void focusCodexNewSession(activeWorkspace, activeThreadId, activeThreadTitle);
+  }, [activeThreadId, activeThreadTitle, activeWorkspace, isSecurityEnabled]);
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -85,13 +110,6 @@ export function useCodexNewController({
     }
     void syncCodexNewThreadTitles(activeWorkspace.id, entries);
   }, [activeWorkspace, state.threadRegistry, threadsByWorkspace]);
-
-  useEffect(() => {
-    if (!activeWorkspace || !activeThreadId || !isSecurityEnabled) {
-      return;
-    }
-    void focusCodexNewSession(activeWorkspace, activeThreadId, activeThreadTitle);
-  }, [activeThreadId, activeThreadTitle, activeWorkspace, isSecurityEnabled]);
 
   const handleToggleSecurity = useCallback(async () => {
     if (securityToggleDisabled || !activeWorkspace) {

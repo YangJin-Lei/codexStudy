@@ -55,6 +55,7 @@ import { useMainAppMobileThreadRefresh } from "@app/hooks/useMainAppMobileThread
 import { useHomeAccount } from "@app/hooks/useHomeAccount";
 import { useCodexNewController } from "@/features/codex-new/hooks/useCodexNewController";
 import type {
+  CodexNewFocusThreadPayload,
   ComposerEditorSettings,
   ServiceTier,
   WorkspaceInfo,
@@ -1404,7 +1405,13 @@ export default function MainApp() {
 
   useTauriEvent(
     subscribeCodexNewFocusThread,
-    ({ workspaceId, threadId }: { workspaceId: string; threadId: string }) => {
+    ({ workspaceId, threadId, processTab }: CodexNewFocusThreadPayload) => {
+      if (processTab) {
+        return;
+      }
+      if (activeWorkspaceId === workspaceId && activeThreadId === threadId) {
+        return;
+      }
       openThreadLinkOrQueue(workspaceId, threadId);
     },
   );
@@ -1758,6 +1765,7 @@ export default function MainApp() {
       securityToggleDisabled: isComputerUseActiveWorkspace,
       activeSession: codexNew.state.activeSession,
       activeThreadRegistryEntry: codexNew.activeThreadRegistryEntry,
+      dataPaths: codexNew.state.dataPaths,
       onOpenUi: codexNew.openWorkbench,
       onToggleSecurity: codexNew.handleToggleSecurity,
       onOpenProcessWindow: codexNew.openProcessWindow,

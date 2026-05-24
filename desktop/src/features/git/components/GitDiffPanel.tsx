@@ -156,6 +156,7 @@ type GitDiffPanelProps = {
   codexNewThreadsByWorkspace?: Record<string, import("@/types").ThreadSummary[]>;
   codexNewActiveSession?: CodexNewSession | null;
   codexNewActiveThreadRegistryEntry?: import("../../codex-new/types").CodexNewThreadRegistryEntry | null;
+  codexNewDataPaths?: import("../../codex-new/types").CodexNewFrontendState["dataPaths"];
   onOpenCodexNewUi?: () => void | Promise<void>;
   onToggleCodexNewSecurity?: () => void | Promise<void>;
   onOpenCodexNewProcessWindow?: () => void | Promise<void>;
@@ -255,6 +256,7 @@ export function GitDiffPanel({
   codexNewThreadsByWorkspace = {},
   codexNewActiveSession = null,
   codexNewActiveThreadRegistryEntry = null,
+  codexNewDataPaths,
   onOpenCodexNewUi,
   onToggleCodexNewSecurity,
   onOpenCodexNewProcessWindow,
@@ -732,6 +734,14 @@ export function GitDiffPanel({
         threadsByWorkspace={codexNewThreadsByWorkspace}
         activeSession={codexNewActiveSession}
         activeThreadRegistryEntry={codexNewActiveThreadRegistryEntry}
+        dataPaths={
+          codexNewDataPaths ?? {
+            codexHome: "",
+            codexNewRoot: "",
+            desktopStatePath: "",
+            legacyCodexHomes: [],
+          }
+        }
         onOpenProcessWindow={() => void onOpenCodexNewProcessWindow?.()}
         onOpenTerminalWindow={() => void onOpenCodexNewTerminalWindow?.()}
       />

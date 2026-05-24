@@ -156,7 +156,7 @@ export function useTerminalSession({
       return null;
     }
     return `${activeWorkspace.id}:${activeTerminalId}`;
-  }, [activeTerminalId, activeWorkspace]);
+  }, [activeTerminalId, activeWorkspace?.id]);
 
   useEffect(() => {
     activeKeyRef.current = activeKey;
@@ -356,7 +356,7 @@ export function useTerminalSession({
     });
   }, [
     activeTerminalId,
-    activeWorkspace,
+    activeWorkspace?.id,
     isVisible,
     onDebug,
     refreshTerminal,
@@ -378,7 +378,7 @@ export function useTerminalSession({
     }
     fitAddonRef.current.fit();
     refreshTerminal();
-  }, [activeKey, isVisible, refreshTerminal]);
+  }, [activeKey, activeWorkspace?.id, isVisible, refreshTerminal]);
 
   useEffect(() => {
     if (
@@ -425,7 +425,7 @@ export function useTerminalSession({
     return () => {
       observer.disconnect();
     };
-  }, [activeTerminalId, activeWorkspace, hasSession, isVisible, onDebug]);
+  }, [activeTerminalId, activeWorkspace?.id, hasSession, isVisible, onDebug]);
 
   return {
     status,

@@ -7,11 +7,52 @@ import {
 } from "../state";
 import type { CodexNewFrontendState } from "../types";
 
+type CodexNewStateListener = () => void;
+
+let refreshIntervalId: number | null = null;
+let refreshInFlight = false;
+const listeners = new Set<CodexNewStateListener>();
+
+function notifyListeners() {
+  listeners.forEach((listener) => {
+    listener();
+  });
+}
+
+function startSharedRefreshLoop() {
+  if (typeof window === "undefined" || refreshIntervalId !== null) {
+    return;
+  }
+  refreshIntervalId = window.setInterval(() => {
+    if (refreshInFlight) {
+      return;
+    }
+    refreshInFlight = true;
+    void refreshCodexNewState()
+      .then(() => {
+        notifyListeners();
+      })
+      .finally(() => {
+        refreshInFlight = false;
+      });
+  }, 2000);
+}
+
+function stopSharedRefreshLoop() {
+  if (typeof window === "undefined" || refreshIntervalId === null) {
+    return;
+  }
+  if (listeners.size > 0) {
+    return;
+  }
+  window.clearInterval(refreshIntervalId);
+  refreshIntervalId = null;
+}
+
 export function useCodexNewState() {
   const [state, setState] = useState<CodexNewFrontendState>(() => readCodexNewState());
 
   useEffect(() => {
-    void refreshCodexNewState();
     const sync = () => {
       setState(readCodexNewState());
     };
@@ -25,15 +66,24 @@ export function useCodexNewState() {
       sync();
     };
 
+    listeners.add(sync);
+    startSharedRefreshLoop();
+    if (!refreshInFlight) {
+      refreshInFlight = true;
+      void refreshCodexNewState()
+        .then(sync)
+        .finally(() => {
+          refreshInFlight = false;
+        });
+    }
+
     window.addEventListener("storage", handleStorage);
     window.addEventListener(CODEX_NEW_STATE_EVENT, handleLocalEvent as EventListener);
-    const interval = window.setInterval(() => {
-      void refreshCodexNewState();
-    }, 2000);
     return () => {
+      listeners.delete(sync);
+      stopSharedRefreshLoop();
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener(CODEX_NEW_STATE_EVENT, handleLocalEvent as EventListener);
-      window.clearInterval(interval);
     };
   }, []);
 

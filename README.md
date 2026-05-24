@@ -1,146 +1,162 @@
-<p align="center"><code>npm i -g @openai/codex</code><br />or <code>brew install --cask codex</code></p>
-<p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
 <p align="center">
-  <img src="https://github.com/openai/codex/blob/main/.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
+  <strong>CodexStudy</strong><br />
+  面向学习与本地开发的 AI 编程桌面环境 · Local-first AI coding desktop for learning and development
 </p>
-</br>
-If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="https://developers.openai.com/codex/ide">install in your IDE.</a>
-</br>If you want the desktop app experience, run <code>codex app</code> or visit <a href="https://chatgpt.com/codex?app-landing-page=true">the Codex App page</a>.
-</br>If you are looking for the <em>cloud-based agent</em> from OpenAI, <strong>Codex Web</strong>, go to <a href="https://chatgpt.com/codex">chatgpt.com/codex</a>.</p>
+
+<p align="center">
+  <a href="https://github.com/YangJin-Lei/codexStudy">GitHub</a> ·
+  <a href="https://github.com/YangJin-Lei/codexStudy/actions/workflows/codexstudy-release.yml">CI Builds</a> ·
+  <a href="./docs/CODEXSTUDY.md">Build Guide</a> ·
+  <a href="./codex-new.md">codex-new Design</a>
+</p>
+
+<p align="center">
+  <a href="#codexstudy-是什么--what-is-codexstudy">中文</a> ·
+  <a href="#what-is-codexstudy">English</a>
+</p>
+
+> **项目说明 · Notice**  
+> 本项目为作者**毕业设计**相关的开源实践，部分功能仍在完善中，**不建议用于生产环境**；问题与建议请走 [Issues](https://github.com/YangJin-Lei/codexStudy/issues)。  
+> This repo supports the author's **graduation project**; features are still evolving—not production-ready. Please use [Issues](https://github.com/YangJin-Lei/codexStudy/issues) for feedback.
 
 ---
 
-## CodexStudy（本仓库衍生桌面端）
+<h2 id="codexstudy-是什么">CodexStudy 是什么</h2>
 
-**仓库**：[YangJin-Lei/codexStudy](https://github.com/YangJin-Lei/codexStudy) · **发布构建**：[GitHub Actions](https://github.com/YangJin-Lei/codexStudy/actions/workflows/codexstudy-release.yml) · **产品文档**：[docs/CODEXSTUDY.md](./docs/CODEXSTUDY.md)
+**CodexStudy** 是一款**本地优先**的 AI 编程环境：提供 **图形桌面端**（Tauri + React）和终端命令 **`codexstudy`**。AI 在隔离副本里改代码，你可以**流式观看过程**、**审核后再合并**、**按文件回溯**，并可选使用 **Computer Use** 控制本机应用。
 
-本仓库在 [openai/codex](https://github.com/openai/codex) 基础上增加了 **CodexStudy** 桌面应用与 **codex-new** 隔离工作流，与上游 CLI 文档并存。
+- 配置目录默认 **`~/.codexStudy`**，与官方 Codex CLI 的 `~/.codex` 隔离
+- **大陆用户**：无需 ChatGPT 登录；在 **设置 → Codex** 配置 **DeepSeek** 等 OpenAI 兼容 API 即可；构建说明见 [docs/CODEXSTUDY.md](./docs/CODEXSTUDY.md)
 
-| 模块 | 路径 | 说明 |
-|------|------|------|
-| 桌面应用 | `desktop/` | React + Tauri，`productName`: **CodexStudy** |
-| codex-new 核心 | `codex-rs/codex-new-core/` | 任务隔离、diff/merge/rollback 等 |
-| CLI / TUI | `codex-rs/cli`、`codex-rs/tui` | 主命令 **`codexstudy`**；打包默认只编此二进制；需要 `codex` 时 `cargo build -p codex-cli --bin codex`；配置 **`~/.codexStudy`** |
-| CLI 子命令 | `codex-rs/cli/src/codex_new_cmd.rs` | `codexstudy new ...` |
-| Computer Use | `computer-use/` | 捆绑桌面自动化资源 |
-| 设计说明 | `codex-new.md` | codex-new 产品/协议说明 |
+<h2 id="what-is-codexstudy">What is CodexStudy</h2>
 
-### 目录结构（节选）
+**CodexStudy** is a **local-first** AI coding environment with a **desktop app** (Tauri + React) and the **`codexstudy`** CLI. The agent works in an **isolated project copy** while you **stream the process**, **review before merge**, **roll back file changes**, and optionally use **Computer Use** for desktop automation.
 
-```text
-codex/
-├── desktop/                 # CodexStudy 桌面端（Tauri）
-│   ├── src/                 # React 前端
-│   └── src-tauri/           # Rust 后端与打包配置
-├── codex-rs/
-│   ├── codex-new-core/      # codex-new 库
-│   └── cli/                 # codex CLI（含 `new` 子命令）
-├── computer-use/            # Open Computer Use 插件与构建
-├── codex-new.md
-├── log.md                   # 变更记录
-└── README.md
-```
+- Default config home: **`~/.codexStudy`**, separate from upstream Codex CLI `~/.codex`
+- **Mainland China users**: no ChatGPT login required—set **DeepSeek** or other OpenAI-compatible APIs under **Settings → Codex**; build guide: [docs/CODEXSTUDY.md](./docs/CODEXSTUDY.md)
 
-### 开发与打包
+---
+
+<h2 id="来源说明">来源说明 · Attribution</h2>
+
+本仓库为**二次开发**作品，在以下项目基础上演进：
+
+| 来源 / Source | 说明 / Notes |
+|------|------|
+| **[openai/codex](https://github.com/openai/codex)** | 核心 Agent、CLI、`codex-rs` 运行时（Apache-2.0） |
+| **CodexMonitor** | 早期桌面壳思路；`desktop/` 已 rebranding 为 CodexStudy |
+| **[computer-use](./computer-use/)** | 捆绑的 Open Computer Use 插件与 MCP 资源 |
+
+上游 Codex 安装说明见文末 **[上游参考 / Upstream reference](#upstream-openai-codex-reference)**，**不是** CodexStudy 的使用前提。
+
+---
+
+<h2 id="核心能力">核心能力 · Features</h2>
+
+桌面端 **codex-new**（`desktop/` + `codex-rs/codex-new-core/`）实现「AI 不直接改原项目」的安全流水线。完整设计见 [codex-new.md](./codex-new.md)。
+
+<p align="center">
+  <img src="./docs/images/codexNewZH.png" alt="codex-new 安全模式（中文）" width="48%" />
+  <img src="./docs/images/codexNewEN.png" alt="codex-new safe mode (English)" width="48%" />
+</p>
+<p align="center"><sub>左：中文界面 · Right: English UI — 过程 / 变更 / 审核 / 总结 / 终端</sub></p>
+
+| # | 中文 | English |
+|---|------|---------|
+| 1 | **流式过程**：时间线展示读取、命令、编辑，而非只看最终 diff | **Streaming process**: timeline of reads, commands, and edits—not only the final diff |
+| 2 | **隔离工作区**：打开项目后自动创建副本（Git worktree 或目录拷贝），AI 只在副本中操作 | **Isolated workspace**: auto clone/worktree; the agent only writes to the copy |
+| 3 | **审核合并**：人工或 AI 审核，测试通过后再合并；支持按文件 / hunk 选择性覆盖 | **Review & merge**: human or AI review; merge only confirmed hunks after tests |
+| 4 | **回溯**：后台保存原文件与修改对照（traceback），误合并可恢复 | **Rollback / traceback**: per-file snapshots to restore after mistaken merges |
+| 5 | **任务总结与记忆**：每轮生成叙述性总结与候选记忆，由你决定是否写入项目记忆 | **Summaries & memory**: per-turn summaries and candidate memory you can apply or skip |
+| 6 | **隔离测试**（可选）：在原项目/副本上运行测试；Docker 独立环境为后续扩展 | **Isolated testing** (optional): run tests on project/copy; Docker env is planned |
+
+实现要点 / Implementation: `desktop/src/features/codex-new/`，`codex-rs/codex-new-core/`（`traceback.rs`、`memory.rs`、`engine.rs`）。
+
+---
+
+<h2 id="computer-use">Computer Use · 计算机控制</h2>
+
+CodexStudy 捆绑 **Open Computer Use**（`computer-use/`），通过 MCP 在受控工作区内操作桌面应用（浏览器、Office 等），与 codex-new 的文件隔离策略相配合。
+
+<p align="center">
+  <img src="./docs/images/computerUseZH.png" alt="Computer Use（中文）" width="48%" />
+  <img src="./docs/images/computerUseEN.png" alt="Computer Use (English)" width="48%" />
+</p>
+<p align="center"><sub>侧边栏会话与设置 · Sidebar sessions and settings</sub></p>
+
+- 代码 / Code: `desktop/src/features/computer-use/`，`desktop/src-tauri/src/computer_use/`
+
+---
+
+<h2 id="快速开始">快速开始 · Quick start</h2>
+
+### 安装 · Install
+
+1. 从 [Releases](https://github.com/YangJin-Lei/codexStudy/releases) 或 [Actions 构建产物](https://github.com/YangJin-Lei/codexStudy/actions/workflows/codexstudy-release.yml) 下载安装包
+2. 运行 **CodexStudy 图形程序**（不是仅终端的 CLI sidecar）
+3. **设置 → Codex** 选择模型提供方，填入 **DeepSeek**（或其他兼容服务）的 API Key
+4. 添加本地项目，在编码区开启 **安全模式（Security）**，用 **Process / Terminal** 打开过程窗口
+
+### 自行编译 · Build from source
 
 ```shell
-# 前端类型检查
-corepack pnpm --dir desktop typecheck
+# Windows NSIS 安装包
+corepack pnpm --dir desktop tauri:build:nsis:win
 
-# Windows 开发
-corepack pnpm --dir desktop tauri:dev:win
-
-# Windows 桌面安装包（Tauri GUI，需本机 Rust / 构建工具链）
-corepack pnpm --dir desktop tauri:build:nsis:win   # NSIS → setup.exe（捆绑桌面 + CLI sidecar）
-corepack pnpm --dir desktop tauri:build:msi:win    # MSI
-
-# 若 CLI / 前端已编好，只打 NSIS 安装包（跳过 beforeBuildCommand，约分钟级）
-corepack pnpm --dir desktop tauri:bundle-only:nsis:win
-
-# 仅打包终端 TUI（codexstudy.exe，约 240MB，不含桌面 GUI）
+# 仅 CLI
 corepack pnpm --dir desktop package:cli:win
 ```
 
-**安装包输出目录**（成功 `tauri build` 之后）：
-
-```text
-desktop/src-tauri/target/release/bundle/
-├── nsis/     # CodexStudy_<version>_x64-setup.exe
-├── msi/      # CodexStudy_<version>_x64_en-US.msi
-├── macos/    # CodexStudy.app
-└── appimage/ # Linux AppImage
-```
-
-- 仅 `tauri dev` **不会**生成上述安装包，只会在 `target/debug/` 下产生开发用可执行文件。
-- Codex 配置目录默认 **`~/.codexStudy`**（可用 `CODEXSTUDY_CODEX_HOME` 或 `CODEX_HOME` 覆盖），与官方 CLI 的 `~/.codex` 隔离。
-- 在桌面端设置里保存 API 后，**TUI / CLI 共用**同一份 `config.toml`（`model_providers.codexstudy-provider`）；默认 **`forced_login_method = "api"`**，不引导 ChatGPT 登录。
-- 终端主命令：**`codexstudy`**（兼容 `codex` 需另行 `cargo build -p codex-cli --bin codex`，日常打包不编）。
-- **首次** `release` 编译 codex-rs 可能需 30–40 分钟（`lto = "fat"`、`codegen-units = 1`）；改 `codex-rs` 后也会触发大范围重编。之后若二进制未变，`prepare:bundled-codex` 会自动跳过 cargo；强制重编：`pnpm --dir desktop prepare:bundled-codex:force --release`。
-- 变更历史见根目录 [`log.md`](./log.md)；待办见 [`desktop/CODEXSTUDY_BACKLOG.md`](./desktop/CODEXSTUDY_BACKLOG.md)。
-- 推送标签 `v*` 可触发 [自动打包工作流](./.github/workflows/codexstudy-release.yml)（Windows / macOS / Linux 安装包产物在 Actions Artifacts 中下载）。
+未签名包在 Windows / macOS 上可能出现安全提示，安装时选择「仍要运行 / Open anyway」即可。
 
 ---
 
-## Quickstart
+<h2 id="仓库结构">仓库结构 · Repository layout</h2>
 
-### Installing and running Codex CLI
-
-Install globally with your preferred package manager:
-
-```shell
-# Install using npm
-npm install -g @openai/codex
+```text
+codex/
+├── desktop/                 # CodexStudy 桌面端
+├── codex-rs/codex-new-core/ # 隔离任务、合并、回溯、总结
+├── computer-use/            # Computer Use 捆绑资源
+├── codex-new.md             # 产品设计
+├── docs/CODEXSTUDY.md       # 构建说明
+└── docs/images/             # README 配图
 ```
 
-```shell
-# Install using Homebrew
-brew install --cask codex
-```
+---
 
-Then simply run `codex` to get started.
+<h2 id="交流">交流 · Community</h2>
+
+- 问题、建议、学习交流：[GitHub Issues](https://github.com/YangJin-Lei/codexStudy/issues)
+- 学习交流群二维码：项目关注度提升后会在本节补充（可先 Star 关注更新）
+
+Questions and discussion: [GitHub Issues](https://github.com/YangJin-Lei/codexStudy/issues). A community chat QR code may be added here later.
+
+<!-- 群二维码就绪后取消注释并替换路径：
+<p align="center">
+  <img src="./docs/images/community-qr.png" alt="CodexStudy 交流群" width="220" />
+</p>
+-->
+
+---
+
+<h2 id="许可">许可与声明 · License & disclaimer</h2>
+
+- 含基于 [openai/codex](https://github.com/openai/codex) 的代码，遵循上游 **Apache-2.0**
+- 产品名 **CodexStudy** 由维护者独立发布，与 OpenAI 官方 Codex **无隶属关系**
+
+---
+
+<h2 id="upstream-openai-codex-reference">上游 OpenAI Codex 参考 · Upstream reference</h2>
 
 <details>
-<summary>You can also go to the <a href="https://github.com/openai/codex/releases/latest">latest GitHub Release</a> and download the appropriate binary for your platform.</summary>
+<summary>Official Codex CLI docs (not CodexStudy)</summary>
 
-Each GitHub Release contains many executables, but in practice, you likely want one of these:
+```shell
+npm install -g @openai/codex
+# or: brew install --cask codex
+```
 
-- macOS
-  - Apple Silicon/arm64: `codex-aarch64-apple-darwin.tar.gz`
-  - x86_64 (older Mac hardware): `codex-x86_64-apple-darwin.tar.gz`
-- Linux
-  - x86_64: `codex-x86_64-unknown-linux-musl.tar.gz`
-  - arm64: `codex-aarch64-unknown-linux-musl.tar.gz`
-
-Each archive contains a single entry with the platform baked into the name (e.g., `codex-x86_64-unknown-linux-musl`), so you likely want to rename it to `codex` after extracting it.
+See [openai/codex](https://github.com/openai/codex) for upstream documentation.
 
 </details>
-
-### Using Codex with your ChatGPT plan
-
-Run `codex` and select **Sign in with ChatGPT**. We recommend signing into your ChatGPT account to use Codex as part of your Plus, Pro, Business, Edu, or Enterprise plan. [Learn more about what's included in your ChatGPT plan](https://help.openai.com/en/articles/11369540-codex-in-chatgpt).
-
-You can also use Codex with an API key, but this requires [additional setup](https://developers.openai.com/codex/auth#sign-in-with-an-api-key).
-
-## Docs
-
-- [**Codex Documentation**](https://developers.openai.com/codex)
-- [**Contributing**](./docs/contributing.md)
-- [**Installing & building**](./docs/install.md)
-- [**Open source fund**](./docs/open-source-fund.md)
-
-## 关于未签名安装包的安全警告绕过说明 (仅限学习与开发用途)
-
-由于本仓库（CodexStudy）是用于学习和研究目的的开源衍生项目，分发的桌面安装包没有使用付费的微软 Windows 代码签名证书或苹果开发者证书进行数字签名。在安装或运行打包的二进制文件时，操作系统可能会弹出安全警告。
-
-### Windows 系统 (SmartScreen 拦截)
-1. 运行安装包时，如果弹出“Windows 已保护你的电脑”提示；
-2. 点击提示信息中的 **“更多信息” (More Info)**；
-3. 点击右下角出现的 **“仍要运行” (Run anyway)** 按钮继续安装。
-
-### macOS 系统 (无法打开/未识别的开发者)
-1. 双击运行程序时，如果提示“无法打开，因为苹果无法检查其是否包含恶意软件”；
-2. 打开 **“系统设置” -> “隐私与安全” (Privacy & Security)**；
-3. 向下滑动到“安全性”部分，您会看到提示：“已阻止使用‘CodexStudy’，因为其不是来自识别的开发者”；
-4. 点击 **“仍要打开” (Open Anyway)**，并输入您的 Mac 开机密码确认。
-
-This repository is licensed under the [Apache-2.0 License](LICENSE).
