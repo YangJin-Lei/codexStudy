@@ -1,8 +1,7 @@
 name: rust-release-prepare
+# Scheduled prepare runs only on openai/codex (forks use workflow_dispatch if needed).
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 */4 * * *"
 
 concurrency:
   group: ${{ github.workflow }}

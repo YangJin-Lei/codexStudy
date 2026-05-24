@@ -3,11 +3,10 @@ name: Bazel
 # Note this workflow was originally derived from:
 # https://github.com/cerisier/toolchains_llvm_bootstrapped/blob/main/.github/workflows/ci.yaml
 
+# CodexStudy fork: no push-to-main CI (use codexstudy-release.yml). Upstream openai/codex
+# still runs post-merge Bazel via workflow_dispatch or PRs when syncing these files.
 on:
   pull_request: {}
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 concurrency:
