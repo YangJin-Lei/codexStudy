@@ -35,14 +35,14 @@
     "clean": "rm -rf dist",
     "build": "tsup",
     "build:watch": "tsup --watch",
-    "lint": "pnpm eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "lint:fix": "pnpm eslint --fix \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "lint": "corepack pnpm eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "lint:fix": "corepack pnpm eslint --fix \"src/**/*.ts\" \"tests/**/*.ts\"",
     "test": "jest",
     "test:watch": "jest --watch",
     "coverage": "jest --coverage",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
-    "prepare": "pnpm run build"
+    "prepare": "corepack pnpm run build"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.24.0",

@@ -2243,6 +2243,7 @@ dependencies = [
  "codex-memories-write",
  "codex-model-provider",
  "codex-models-manager",
+ "codex-new-core",
  "codex-plugin",
  "codex-protocol",
  "codex-responses-api-proxy",
@@ -3327,6 +3328,24 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "codex-new-core"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "codex-git-utils",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.18",
+ "toml 0.9.11+spec-1.1.0",
+ "uuid",
+ "walkdir",
 ]
 
 [[package]]

@@ -91,11 +91,16 @@ impl WidgetRef for &WelcomeWidget {
             lines.extend(frame.lines().map(Into::into));
             lines.push("".into());
         }
+        let subtitle = if super::codexstudy_provider_setup::is_codexstudy_cli() {
+            ", your AI coding assistant for learning (terminal or desktop)".into()
+        } else {
+            ", a command-line coding agent for learning".into()
+        };
         lines.push(Line::from(vec![
             "  ".into(),
             "Welcome to ".into(),
-            "Codex".bold(),
-            ", OpenAI's command-line coding agent".into(),
+            "CodexStudy".bold(),
+            subtitle,
         ]));
 
         Paragraph::new(lines)

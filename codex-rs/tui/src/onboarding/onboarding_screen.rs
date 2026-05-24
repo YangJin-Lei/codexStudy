@@ -39,6 +39,7 @@ use crate::legacy_core::windows_sandbox::WindowsSandboxLevelExt;
 use crate::onboarding::auth::AuthModeWidget;
 use crate::onboarding::auth::SignInOption;
 use crate::onboarding::auth::SignInState;
+use crate::onboarding::codexstudy_provider_setup;
 use crate::onboarding::keys;
 use crate::onboarding::trust_directory::TrustDirectorySelection;
 use crate::onboarding::trust_directory::TrustDirectoryWidget;
@@ -120,9 +121,13 @@ impl OnboardingScreen {
             config.animations,
         )));
         if show_login_screen {
-            let highlighted_mode = match forced_login_method {
-                Some(ForcedLoginMethod::Api) => SignInOption::ApiKey,
-                _ => SignInOption::ChatGpt,
+            let highlighted_mode = if codexstudy_provider_setup::is_codexstudy_cli() {
+                SignInOption::DomesticApi
+            } else {
+                match forced_login_method {
+                    Some(ForcedLoginMethod::Api) => SignInOption::ApiKey,
+                    _ => SignInOption::ChatGpt,
+                }
             };
             if let Some(app_server_request_handle) = app_server_request_handle {
                 steps.push(Step::Auth(AuthModeWidget {
@@ -133,6 +138,7 @@ impl OnboardingScreen {
                     login_status,
                     app_server_request_handle,
                     forced_login_method,
+                    codex_home: codex_home.clone(),
                     animations_enabled: config.animations,
                     animations_suppressed: std::cell::Cell::new(false),
                 }));

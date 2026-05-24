@@ -69,6 +69,8 @@ impl OpenAiModelsEndpoint {
 impl ModelsEndpointClient for OpenAiModelsEndpoint {
     fn has_command_auth(&self) -> bool {
         self.provider_info.has_command_auth()
+            || self.provider_info.experimental_bearer_token.is_some()
+            || self.provider_info.env_key.is_some()
     }
 
     async fn uses_codex_backend(&self) -> bool {
@@ -243,5 +245,20 @@ mod tests {
         );
 
         assert!(!endpoint.has_command_auth());
+    }
+
+    #[test]
+    fn provider_with_configured_bearer_token_reports_refreshable_auth() {
+        let endpoint = OpenAiModelsEndpoint::new(
+            ModelProviderInfo {
+                experimental_bearer_token: Some("provider-token".to_string()),
+                ..ModelProviderInfo::create_openai_provider(Some(
+                    "https://example.test/v1".to_string(),
+                ))
+            },
+            /*auth_manager*/ None,
+        );
+
+        assert!(endpoint.has_command_auth());
     }
 }

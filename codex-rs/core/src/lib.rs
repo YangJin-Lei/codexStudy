@@ -5,11 +5,15 @@
 // the TUI or the tracing stack).
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
+mod ai_workspace_manager;
 mod apply_patch;
 mod apps;
 mod arc_monitor;
 mod client;
 mod client_common;
+mod code_rollback;
+mod conversation_summary;
+mod project_clone;
 mod realtime_context;
 mod realtime_conversation;
 mod realtime_prompt;
@@ -196,3 +200,18 @@ pub use turn_metadata::build_turn_metadata_header;
 pub mod compact;
 mod memory_usage;
 pub mod otel_init;
+
+// 导出新增的功能模块
+pub use code_rollback::CodeRollbackManager;
+pub use code_rollback::DiffType;
+pub use code_rollback::FileDiff;
+pub use code_rollback::FileSnapshot;
+pub use code_rollback::RollbackPoint;
+pub use conversation_summary::ConversationMessage;
+pub use conversation_summary::ConversationSummaryManager;
+pub use conversation_summary::MessageRole;
+pub use conversation_summary::SessionSummary;
+pub use conversation_summary::TurnSummary;
+pub use project_clone::ClonedProject;
+pub use project_clone::ProjectCloneConfig;
+pub use project_clone::ProjectCloneManager;

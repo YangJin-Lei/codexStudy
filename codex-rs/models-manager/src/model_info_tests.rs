@@ -3,6 +3,17 @@ use crate::ModelsManagerConfig;
 use pretty_assertions::assert_eq;
 
 #[test]
+fn fallback_model_metadata_uses_codex_study_branding() {
+    let model = model_info_from_slug("unknown-model");
+    assert!(
+        !model.base_instructions.contains("Codex CLI"),
+        "expected Codex CLI references to be rebranded"
+    );
+    assert!(model.base_instructions.contains("CodexStudy"));
+    assert!(!model.base_instructions.contains("based on GPT-5"));
+}
+
+#[test]
 fn reasoning_summaries_override_true_enables_support() {
     let model = model_info_from_slug("unknown-model");
     let config = ModelsManagerConfig {

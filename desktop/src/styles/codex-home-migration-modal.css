@@ -1,0 +1,43 @@
+.codex-home-migration-modal .ds-modal-card {
+  max-width: 34rem;
+}
+
+.codex-home-migration-modal-subtitle code {
+  font-size: 0.92em;
+}
+
+.codex-home-migration-modal-note-inline {
+  display: block;
+  margin-top: 0.55rem;
+  font-size: 0.92rem;
+  opacity: 0.82;
+}
+
+.codex-home-migration-modal-list {
+  margin: 0.75rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.codex-home-migration-modal-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.codex-home-migration-modal-count {
+  opacity: 0.75;
+  font-size: 0.92rem;
+}
+
+.codex-home-migration-modal-hint {
+  margin-top: 0.75rem;
+  font-size: 0.92rem;
+  opacity: 0.8;
+  line-height: 1.45;
+}
+
+.codex-home-migration-modal-actions {
+  flex-wrap: wrap;
+}

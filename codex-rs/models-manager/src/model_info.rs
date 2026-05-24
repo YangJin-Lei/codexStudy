@@ -14,7 +14,7 @@ use codex_utils_output_truncation::approx_bytes_for_tokens;
 use tracing::warn;
 
 pub const BASE_INSTRUCTIONS: &str = include_str!("../prompt.md");
-const DEFAULT_PERSONALITY_HEADER: &str = "You are Codex, a coding agent based on GPT-5. You and the user share the same workspace and collaborate to achieve the user's goals.";
+const DEFAULT_PERSONALITY_HEADER: &str = "You are CodexStudy, a coding agent powered by the model configured for this conversation. You and the user share the same workspace and collaborate to achieve the user's goals. When asked which model you are, use the exact model name from developer instructions (do not say GPT-5 unless that is the configured model).";
 const LOCAL_FRIENDLY_TEMPLATE: &str =
     "You optimize for team morale and being a supportive teammate as much as code quality.";
 const LOCAL_PRAGMATIC_TEMPLATE: &str = "You are a deeply pragmatic, effective software engineer.";
@@ -59,13 +59,59 @@ pub fn with_config_overrides(mut model: ModelInfo, config: &ModelsManagerConfig)
         model.model_messages = None;
     }
 
+    apply_codex_study_branding(&mut model);
     model
+}
+
+fn apply_codex_study_branding(model: &mut ModelInfo) {
+    model.base_instructions = brand_agent_text(&model.base_instructions);
+    if let Some(messages) = model.model_messages.as_mut()
+        && let Some(template) = messages.instructions_template.as_mut()
+    {
+        *template = brand_agent_text(template);
+    }
+}
+
+fn brand_agent_text(text: &str) -> String {
+    text.replace("You are Codex,", "You are CodexStudy,")
+        .replace("You are Codex ", "You are CodexStudy ")
+        .replace(
+            "You are a coding agent running in the Codex CLI",
+            "You are a coding agent running in CodexStudy",
+        )
+        .replace(
+            "running as a coding agent in the Codex CLI",
+            "running as a coding agent in CodexStudy",
+        )
+        .replace("running in the Codex CLI", "running in CodexStudy")
+        .replace("Codex CLI is", "CodexStudy is")
+        .replace("in the Codex CLI", "in CodexStudy")
+        .replace("the Codex CLI", "CodexStudy")
+        .replace("inner life as Codex:", "inner life as CodexStudy:")
+        .replace("You are Codex, an OpenAI", "You are CodexStudy, an OpenAI")
+        .replace(
+            "Codex refers to the open-source",
+            "CodexStudy refers to the",
+        )
+        .replace("your coding partner", "your CodexStudy partner")
+        .replace(
+            "a coding agent based on GPT-5",
+            "CodexStudy, a coding agent powered by the model configured for this conversation",
+        )
+        .replace(
+            "coding agent based on GPT-5",
+            "CodexStudy coding agent powered by the model configured for this conversation",
+        )
+        .replace(
+            "based on GPT-5",
+            "powered by the model configured for this conversation",
+        )
 }
 
 /// Build a minimal fallback model descriptor for missing/unknown slugs.
 pub fn model_info_from_slug(slug: &str) -> ModelInfo {
     warn!("Unknown model {slug} is used. This will use fallback model metadata.");
-    ModelInfo {
+    let mut model = ModelInfo {
         slug: slug.to_string(),
         display_name: slug.to_string(),
         description: None,
@@ -98,7 +144,9 @@ pub fn model_info_from_slug(slug: &str) -> ModelInfo {
         input_modalities: default_input_modalities(),
         used_fallback_model_metadata: true, // this is the fallback model metadata
         supports_search_tool: false,
-    }
+    };
+    apply_codex_study_branding(&mut model);
+    model
 }
 
 fn local_personality_messages_for_slug(slug: &str) -> Option<ModelMessages> {

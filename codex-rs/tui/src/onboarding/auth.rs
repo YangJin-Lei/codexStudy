@@ -39,9 +39,12 @@ use ratatui::widgets::Wrap;
 
 use codex_protocol::config_types::ForcedLoginMethod;
 use std::cell::Cell;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::RwLock;
 use uuid::Uuid;
+
+use super::codexstudy_provider_setup;
 
 use crate::LoginStatus;
 use crate::key_hint::KeyBinding;
@@ -119,6 +122,8 @@ pub(crate) enum SignInState {
     ChatGptSuccess,
     ApiKeyEntry(ApiKeyInputState),
     ApiKeyConfigured,
+    DomesticApiEntry(ApiKeyInputState),
+    DomesticApiConfigured,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -126,6 +131,8 @@ pub(crate) enum SignInOption {
     ChatGpt,
     DeviceCode,
     ApiKey,
+    /// DeepSeek and other domestic OpenAI-compatible APIs (CodexStudy CLI only).
+    DomesticApi,
 }
 
 const API_KEY_DISABLED_MESSAGE: &str = "API key login is disabled.";
@@ -209,7 +216,7 @@ impl ContinueWithDeviceCodeState {
 
 impl KeyboardHandler for AuthModeWidget {
     fn handle_key_event(&mut self, key_event: KeyEvent) {
-        if self.handle_api_key_entry_key_event(&key_event) {
+        if self.handle_secret_entry_key_event(&key_event) {
             return;
         }
 
@@ -253,7 +260,7 @@ impl KeyboardHandler for AuthModeWidget {
     }
 
     fn handle_paste(&mut self, pasted: String) {
-        let _ = self.handle_api_key_entry_paste(pasted);
+        let _ = self.handle_secret_entry_paste(pasted);
     }
 }
 
@@ -267,6 +274,7 @@ pub(crate) struct AuthModeWidget {
     pub login_status: LoginStatus,
     pub app_server_request_handle: AppServerRequestHandle,
     pub forced_login_method: Option<ForcedLoginMethod>,
+    pub codex_home: PathBuf,
     pub animations_enabled: bool,
     pub animations_suppressed: Cell<bool>,
 }
@@ -319,16 +327,23 @@ impl AuthModeWidget {
 
     /// Returns whether the auth flow is currently in API-key entry mode.
     pub(crate) fn is_api_key_entry_active(&self) -> bool {
-        self.sign_in_state
-            .read()
-            .is_ok_and(|guard| matches!(&*guard, SignInState::ApiKeyEntry(_)))
+        self.sign_in_state.read().is_ok_and(|guard| {
+            matches!(
+                &*guard,
+                SignInState::ApiKeyEntry(_) | SignInState::DomesticApiEntry(_)
+            )
+        })
     }
 
     /// Returns whether the API-key entry field currently contains any text.
     pub(crate) fn api_key_entry_has_text(&self) -> bool {
-        self.sign_in_state.read().is_ok_and(
-            |guard| matches!(&*guard, SignInState::ApiKeyEntry(state) if !state.value.is_empty()),
-        )
+        self.sign_in_state.read().is_ok_and(|guard| {
+            matches!(
+                &*guard,
+                SignInState::ApiKeyEntry(state) | SignInState::DomesticApiEntry(state)
+                    if !state.value.is_empty()
+            )
+        })
     }
 
     fn confirm_binding(&self) -> KeyBinding {
@@ -348,6 +363,9 @@ impl AuthModeWidget {
     }
 
     fn displayed_sign_in_options(&self) -> Vec<SignInOption> {
+        if codexstudy_provider_setup::is_codexstudy_cli() {
+            return vec![SignInOption::DomesticApi];
+        }
         let mut options = vec![SignInOption::ChatGpt];
         if self.is_chatgpt_login_allowed() {
             options.push(SignInOption::DeviceCode);
@@ -359,6 +377,9 @@ impl AuthModeWidget {
     }
 
     fn selectable_sign_in_options(&self) -> Vec<SignInOption> {
+        if codexstudy_provider_setup::is_codexstudy_cli() {
+            return vec![SignInOption::DomesticApi];
+        }
         let mut options = Vec::new();
         if self.is_chatgpt_login_allowed() {
             options.push(SignInOption::ChatGpt);
@@ -411,28 +432,49 @@ impl AuthModeWidget {
                     self.disallow_api_login();
                 }
             }
+            SignInOption::DomesticApi => {
+                self.start_domestic_api_key_entry();
+            }
         }
     }
 
     fn disallow_api_login(&mut self) {
-        self.highlighted_mode = SignInOption::ChatGpt;
+        self.highlighted_mode = if codexstudy_provider_setup::is_codexstudy_cli() {
+            SignInOption::DomesticApi
+        } else {
+            SignInOption::ChatGpt
+        };
         self.set_error(Some(API_KEY_DISABLED_MESSAGE.to_string()));
         *self.sign_in_state.write().unwrap() = SignInState::PickMode;
         self.request_frame.schedule_frame();
     }
 
     fn render_pick_mode(&self, area: Rect, buf: &mut Buffer) {
-        let mut lines: Vec<Line> = vec![
-            Line::from(vec![
-                "  ".into(),
-                "Sign in with ChatGPT to use Codex as part of your paid plan".into(),
-            ]),
-            Line::from(vec![
-                "  ".into(),
-                "or connect an API key for usage-based billing".into(),
-            ]),
-            "".into(),
-        ];
+        let mut lines: Vec<Line> = if codexstudy_provider_setup::is_codexstudy_cli() {
+            vec![
+                Line::from(vec![
+                    "  ".into(),
+                    "Connect a domestic AI model API to start using CodexStudy".into(),
+                ]),
+                Line::from(vec![
+                    "  ".into(),
+                    "Keys are stored locally in ~/.codexStudy/config.toml".dim(),
+                ]),
+                "".into(),
+            ]
+        } else {
+            vec![
+                Line::from(vec![
+                    "  ".into(),
+                    "Sign in with ChatGPT to use Codex as part of your paid plan".into(),
+                ]),
+                Line::from(vec![
+                    "  ".into(),
+                    "or connect an API key for usage-based billing".into(),
+                ]),
+                "".into(),
+            ]
+        };
 
         let create_mode_item = |idx: usize,
                                 selected_mode: SignInOption,
@@ -494,6 +536,14 @@ impl AuthModeWidget {
                         option,
                         "Provide your own API key",
                         "Pay for what you use",
+                    ));
+                }
+                SignInOption::DomesticApi => {
+                    lines.extend(create_mode_item(
+                        idx,
+                        option,
+                        "Use a domestic model API (DeepSeek)",
+                        "Get a key from platform.deepseek.com — stored in ~/.codexStudy",
                     ));
                 }
             }
@@ -637,6 +687,81 @@ impl AuthModeWidget {
             .render(area, buf);
     }
 
+    fn render_domestic_api_configured(&self, area: Rect, buf: &mut Buffer) {
+        let lines = vec![
+            "✓ Domestic model API configured".fg(Color::Green).into(),
+            "".into(),
+            "  CodexStudy will use DeepSeek via ~/.codexStudy/config.toml.".into(),
+        ];
+
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .render(area, buf);
+    }
+
+    fn render_domestic_api_key_entry(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        state: &ApiKeyInputState,
+    ) {
+        let [intro_area, input_area, footer_area] = Layout::vertical([
+            Constraint::Min(4),
+            Constraint::Length(3),
+            Constraint::Min(2),
+        ])
+        .areas(area);
+
+        let intro_lines = vec![
+            Line::from(vec![
+                "> ".into(),
+                "Use a domestic model API (DeepSeek)".bold(),
+            ]),
+            "".into(),
+            "  Paste your API key from platform.deepseek.com. It will be stored in ~/.codexStudy/config.toml.".into(),
+            "".into(),
+        ];
+        Paragraph::new(intro_lines)
+            .wrap(Wrap { trim: false })
+            .render(intro_area, buf);
+
+        let content_line: Line = if state.value.is_empty() {
+            vec!["Paste or type your DeepSeek API key".dim()].into()
+        } else {
+            Line::from(state.value.clone())
+        };
+        Paragraph::new(content_line)
+            .wrap(Wrap { trim: false })
+            .block(
+                Block::default()
+                    .title("API key")
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(Color::Cyan)),
+            )
+            .render(input_area, buf);
+
+        let mut footer_lines: Vec<Line> = vec![
+            Line::from(vec![
+                "  Press ".dim(),
+                self.confirm_binding().into(),
+                " to save".dim(),
+            ]),
+            Line::from(vec![
+                "  Press ".dim(),
+                self.cancel_binding().into(),
+                " to go back".dim(),
+            ]),
+        ];
+        if let Some(error) = self.error_message() {
+            footer_lines.push("".into());
+            footer_lines.push(error.red().into());
+        }
+        Paragraph::new(footer_lines)
+            .wrap(Wrap { trim: false })
+            .render(footer_area, buf);
+    }
+
     fn render_api_key_entry(&self, area: Rect, buf: &mut Buffer, state: &ApiKeyInputState) {
         let [intro_area, input_area, footer_area] = Layout::vertical([
             Constraint::Min(4),
@@ -704,90 +829,155 @@ impl AuthModeWidget {
             .render(footer_area, buf);
     }
 
-    fn handle_api_key_entry_key_event(&mut self, key_event: &KeyEvent) -> bool {
-        let mut should_save: Option<String> = None;
+    fn apply_secret_entry_edit(state: &mut ApiKeyInputState, key_event: &KeyEvent) {
+        match key_event.code {
+            KeyCode::Backspace => {
+                if state.prepopulated_from_env {
+                    state.value.clear();
+                    state.prepopulated_from_env = false;
+                } else {
+                    state.value.pop();
+                }
+            }
+            KeyCode::Char(c)
+                if key_event.kind == KeyEventKind::Press
+                    && !key_event.modifiers.contains(KeyModifiers::SUPER)
+                    && !key_event.modifiers.contains(KeyModifiers::CONTROL)
+                    && !key_event.modifiers.contains(KeyModifiers::ALT) =>
+            {
+                if state.prepopulated_from_env {
+                    state.value.clear();
+                    state.prepopulated_from_env = false;
+                }
+                state.value.push(c);
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_secret_entry_key_event(&mut self, key_event: &KeyEvent) -> bool {
+        let mut should_save: Option<(String, bool)> = None;
         let mut should_request_frame = false;
 
         {
             let mut guard = self.sign_in_state.write().unwrap();
-            if let SignInState::ApiKeyEntry(state) = &mut *guard {
-                if keys::CANCEL.is_pressed(*key_event) {
-                    *guard = SignInState::PickMode;
-                    self.set_error(/*message*/ None);
-                    should_request_frame = true;
-                } else if keys::CONFIRM.is_pressed(*key_event) {
-                    let trimmed = state.value.trim().to_string();
-                    if trimmed.is_empty() {
-                        self.set_error(Some("API key cannot be empty".to_string()));
+            match &mut *guard {
+                SignInState::ApiKeyEntry(state) => {
+                    if keys::CANCEL.is_pressed(*key_event) {
+                        *guard = SignInState::PickMode;
+                        self.set_error(/*message*/ None);
                         should_request_frame = true;
+                    } else if keys::CONFIRM.is_pressed(*key_event) {
+                        let trimmed = state.value.trim().to_string();
+                        if trimmed.is_empty() {
+                            self.set_error(Some("API key cannot be empty".to_string()));
+                            should_request_frame = true;
+                        } else {
+                            should_save = Some((trimmed, false));
+                        }
                     } else {
-                        should_save = Some(trimmed);
-                    }
-                } else {
-                    match key_event.code {
-                        KeyCode::Backspace => {
-                            if state.prepopulated_from_env {
-                                state.value.clear();
-                                state.prepopulated_from_env = false;
-                            } else {
-                                state.value.pop();
-                            }
-                            self.set_error(/*message*/ None);
-                            should_request_frame = true;
-                        }
-                        KeyCode::Char(c)
-                            if key_event.kind == KeyEventKind::Press
-                                && !key_event.modifiers.contains(KeyModifiers::SUPER)
-                                && !key_event.modifiers.contains(KeyModifiers::CONTROL)
-                                && !key_event.modifiers.contains(KeyModifiers::ALT) =>
-                        {
-                            if state.prepopulated_from_env {
-                                state.value.clear();
-                                state.prepopulated_from_env = false;
-                            }
-                            state.value.push(c);
-                            self.set_error(/*message*/ None);
-                            should_request_frame = true;
-                        }
-                        _ => {}
+                        Self::apply_secret_entry_edit(state, key_event);
+                        self.set_error(/*message*/ None);
+                        should_request_frame = true;
                     }
                 }
-                // handled; let guard drop before potential save
-            } else {
-                return false;
+                SignInState::DomesticApiEntry(state) => {
+                    if keys::CANCEL.is_pressed(*key_event) {
+                        *guard = SignInState::PickMode;
+                        self.set_error(/*message*/ None);
+                        should_request_frame = true;
+                    } else if keys::CONFIRM.is_pressed(*key_event) {
+                        let trimmed = state.value.trim().to_string();
+                        if trimmed.is_empty() {
+                            self.set_error(Some("API key cannot be empty".to_string()));
+                            should_request_frame = true;
+                        } else {
+                            should_save = Some((trimmed, true));
+                        }
+                    } else {
+                        Self::apply_secret_entry_edit(state, key_event);
+                        self.set_error(/*message*/ None);
+                        should_request_frame = true;
+                    }
+                }
+                _ => return false,
             }
         }
 
-        if let Some(api_key) = should_save {
-            self.save_api_key(api_key);
+        if let Some((api_key, is_domestic)) = should_save {
+            if is_domestic {
+                self.save_domestic_api_key(api_key);
+            } else {
+                self.save_api_key(api_key);
+            }
         } else if should_request_frame {
             self.request_frame.schedule_frame();
         }
         true
     }
 
-    fn handle_api_key_entry_paste(&mut self, pasted: String) -> bool {
+    fn handle_secret_entry_paste(&mut self, pasted: String) -> bool {
         let trimmed = pasted.trim();
         if trimmed.is_empty() {
             return false;
         }
 
         let mut guard = self.sign_in_state.write().unwrap();
-        if let SignInState::ApiKeyEntry(state) = &mut *guard {
-            if state.prepopulated_from_env {
-                state.value = trimmed.to_string();
-                state.prepopulated_from_env = false;
-            } else {
-                state.value.push_str(trimmed);
-            }
-            self.set_error(/*message*/ None);
+        let entry_state = match &mut *guard {
+            SignInState::ApiKeyEntry(state) => state,
+            SignInState::DomesticApiEntry(state) => state,
+            _ => return false,
+        };
+        if entry_state.prepopulated_from_env {
+            entry_state.value = trimmed.to_string();
+            entry_state.prepopulated_from_env = false;
         } else {
-            return false;
+            entry_state.value.push_str(trimmed);
         }
+        self.set_error(/*message*/ None);
 
         drop(guard);
         self.request_frame.schedule_frame();
         true
+    }
+
+    fn start_domestic_api_key_entry(&mut self) {
+        self.set_error(/*message*/ None);
+        *self.sign_in_state.write().unwrap() = SignInState::DomesticApiEntry(ApiKeyInputState {
+            value: String::new(),
+            prepopulated_from_env: false,
+        });
+        self.request_frame.schedule_frame();
+    }
+
+    fn save_domestic_api_key(&mut self, api_key: String) {
+        self.set_error(/*message*/ None);
+        let codex_home = self.codex_home.clone();
+        let sign_in_state = self.sign_in_state.clone();
+        let error = self.error.clone();
+        let request_frame = self.request_frame.clone();
+        tokio::spawn(async move {
+            match codexstudy_provider_setup::persist_domestic_provider_api_key(
+                codex_home.as_path(),
+                api_key.as_str(),
+            ) {
+                Ok(()) => {
+                    *error.write().unwrap() = None;
+                    *sign_in_state.write().unwrap() = SignInState::DomesticApiConfigured;
+                }
+                Err(err) => {
+                    *error.write().unwrap() =
+                        Some(format!("Failed to save domestic API key: {err}"));
+                    *sign_in_state.write().unwrap() =
+                        SignInState::DomesticApiEntry(ApiKeyInputState {
+                            value: api_key,
+                            prepopulated_from_env: false,
+                        });
+                }
+            }
+            request_frame.schedule_frame();
+        });
+        self.request_frame.schedule_frame();
     }
 
     fn start_api_key_entry(&mut self) {
@@ -980,10 +1170,13 @@ impl StepStateProvider for AuthModeWidget {
         match &*sign_in_state {
             SignInState::PickMode
             | SignInState::ApiKeyEntry(_)
+            | SignInState::DomesticApiEntry(_)
             | SignInState::ChatGptContinueInBrowser(_)
             | SignInState::ChatGptDeviceCode(_)
             | SignInState::ChatGptSuccessMessage => StepState::InProgress,
-            SignInState::ChatGptSuccess | SignInState::ApiKeyConfigured => StepState::Complete,
+            SignInState::ChatGptSuccess
+            | SignInState::ApiKeyConfigured
+            | SignInState::DomesticApiConfigured => StepState::Complete,
         }
     }
 }
@@ -1012,6 +1205,12 @@ impl WidgetRef for AuthModeWidget {
             }
             SignInState::ApiKeyConfigured => {
                 self.render_api_key_configured(area, buf);
+            }
+            SignInState::DomesticApiEntry(state) => {
+                self.render_domestic_api_key_entry(area, buf, state);
+            }
+            SignInState::DomesticApiConfigured => {
+                self.render_domestic_api_configured(area, buf);
             }
         }
     }
@@ -1090,6 +1289,7 @@ mod tests {
             login_status: LoginStatus::NotAuthenticated,
             app_server_request_handle: AppServerRequestHandle::InProcess(client.request_handle()),
             forced_login_method: Some(ForcedLoginMethod::Chatgpt),
+            codex_home: codex_home_path,
             animations_enabled: true,
             animations_suppressed: std::cell::Cell::new(false),
         };

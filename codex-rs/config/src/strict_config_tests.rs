@@ -125,3 +125,30 @@ collapsed = true"#;
 
     assert_eq!(error, None);
 }
+
+#[test]
+#[ignore = "manual: set CODEX_USER_CONFIG to a local path"]
+fn desktop_open_in_target_preferences_parses_user_config_file() {
+    let path = std::env::var("CODEX_USER_CONFIG").expect("CODEX_USER_CONFIG");
+    let contents = std::fs::read_to_string(&path).expect("read config");
+    toml::from_str::<TomlValue>(&contents)
+        .unwrap_or_else(|err| panic!("failed to parse {path}: {err}"));
+}
+
+#[test]
+fn desktop_open_in_target_preferences_parses_as_toml() {
+    let contents = r#"
+[windows]
+sandbox = "elevated"
+
+[desktop]
+conversationDetailMode = "STEPS_COMMANDS"
+
+[desktop.open-in-target-preferences]
+global = "fileManager"
+
+[desktop.open-in-target-preferences.perPath]
+'I:\BLOG' = "fileManager"
+"#;
+    toml::from_str::<TomlValue>(contents).expect("desktop preference tables should parse");
+}

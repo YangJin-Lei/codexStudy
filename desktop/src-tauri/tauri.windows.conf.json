@@ -1,0 +1,30 @@
+{
+    "app":  {
+                "windows":  [
+                                {
+                                    "title":  "CodexStudy",
+                                    "width":  1200,
+                                    "height":  700,
+                                    "minWidth":  360,
+                                    "minHeight":  600,
+                                    "dragDropEnabled":  true,
+                                    "titleBarStyle":  "Visible",
+                                    "hiddenTitle":  false,
+                                    "transparent":  true,
+                                    "devtools":  true,
+                                    "windowEffects":  null
+                                }
+                            ]
+    },
+    "bundle":  {
+                   "createUpdaterArtifacts":  false,
+                   "externalBin":  [
+                                       "binaries/codexstudy-cli"
+                                   ],
+                   "windows":  {
+                                   "nsis":  {
+                                                "installerIcon":  "icons/icon.ico"
+                                            }
+                               }
+               }
+}

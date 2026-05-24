@@ -1803,6 +1803,12 @@ fn should_show_onboarding(
 }
 
 fn should_show_login_screen(login_status: LoginStatus, config: &Config) -> bool {
+    use codex_protocol::config_types::ForcedLoginMethod;
+
+    if matches!(config.forced_login_method, Some(ForcedLoginMethod::Api)) {
+        return false;
+    }
+
     // Only show the login screen for providers that actually require OpenAI auth
     // (OpenAI or equivalents). For OSS/other providers, skip login entirely.
     if !config.model_provider.requires_openai_auth {

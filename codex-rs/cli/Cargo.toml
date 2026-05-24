@@ -6,6 +6,12 @@ license.workspace = true
 build = "build.rs"
 
 [[bin]]
+name = "codexstudy"
+path = "src/main.rs"
+
+# Optional compatibility alias (not built by desktop prepare:bundled-codex):
+#   cargo build -p codex-cli --bin codex
+[[bin]]
 name = "codex"
 path = "src/main.rs"
 
@@ -42,6 +48,7 @@ codex-login = { workspace = true }
 codex-memories-write = { workspace = true }
 codex-mcp = { workspace = true }
 codex-mcp-server = { workspace = true }
+codex-new-core = { workspace = true }
 codex-model-provider = { workspace = true }
 codex-models-manager = { workspace = true }
 codex-plugin = { workspace = true }

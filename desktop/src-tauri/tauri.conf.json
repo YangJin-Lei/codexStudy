@@ -1,0 +1,83 @@
+{
+    "$schema":  "https://schema.tauri.app/config/2",
+    "productName":  "CodexStudy",
+    "version":  "0.7.68",
+    "identifier":  "com.codexstudy.desktop",
+    "build":  {
+                  "beforeDevCommand":  "corepack pnpm dev:tauri-bootstrap",
+                  "devUrl":  "http://localhost:1420",
+                  "beforeBuildCommand":  "corepack pnpm build:tauri-bootstrap",
+                  "frontendDist":  "../dist"
+              },
+    "app":  {
+                "macOSPrivateApi":  true,
+                "windows":  [
+                                {
+                                    "title":  "CodexStudy",
+                                    "width":  1200,
+                                    "height":  700,
+                                    "minWidth":  360,
+                                    "minHeight":  600,
+                                    "dragDropEnabled":  true,
+                                    "titleBarStyle":  "Overlay",
+                                    "hiddenTitle":  true,
+                                    "trafficLightPosition":  {
+                                                                 "x":  19,
+                                                                 "y":  24
+                                                             },
+                                    "transparent":  true,
+                                    "devtools":  true
+                                }
+                            ],
+                "security":  {
+                                 "csp":  null,
+                                 "assetProtocol":  {
+                                                       "enable":  true,
+                                                       "scope":  [
+                                                                     "**/*"
+                                                                 ]
+                                                   }
+                             }
+            },
+    "bundle":  {
+                   "active":  true,
+                   "targets":  "all",
+                   "createUpdaterArtifacts":  false,
+                   "externalBin":  [
+                                       "binaries/codexstudy-cli"
+                                   ],
+                   "windows":  {
+                                   "nsis":  {
+                                                "installerIcon":  "icons/icon.ico"
+                                            }
+                               },
+                   "resources":  {
+                                     "resources/computer-use/":  "computer-use"
+                                 },
+                   "iOS":  {
+                               "frameworks":  [
+                                                  "libz.tbd",
+                                                  "libiconv.tbd"
+                                              ]
+                           },
+                   "icon":  [
+                                "icons/32x32.png",
+                                "icons/128x128.png",
+                                "icons/128x128@2x.png",
+                                "icons/icon.icns",
+                                "icons/icon.ico"
+                            ],
+                   "macOS":  {
+                                 "entitlements":  "./Entitlements.plist",
+                                 "infoPlist":  "./Info.plist"
+                             }
+               },
+    "plugins":  {
+                    "updater":  {
+                                    "pubkey":  "",
+                                    "endpoints":  [
+
+                                                  ]
+                                }
+               }
+}
