@@ -1,11 +1,9 @@
 # README 配图
 
-| 文件 | 说明 |
+| 文件 | 用途 |
 |------|------|
-| `codexNewZH.png` | codex-new 安全模式界面（中文） |
-| `codexNewEN.png` | codex-new safe mode UI (English) |
-| `computerUseZH.png` | Computer Use 界面（中文） |
-| `computerUseEN.png` | Computer Use UI (English) |
+| `codexNewZH.png` | [README.zh-CN.md](../../README.zh-CN.md) — codex-new 安全模式 |
+| `codexNewEN.png` | [README.md](../../README.md) — codex-new safe mode |
+| `computerUseZH.png` | [README.zh-CN.md](../../README.zh-CN.md) — Computer Use |
+| `computerUseEN.png` | [README.md](../../README.md) — Computer Use |
 | `community-qr.png` | （可选）学习交流群二维码，Star 起来后再放 |
-
-在 `README.md` 中，codex-new 与 Computer Use 各使用一组中英截图并排展示；群二维码放在「交流 · Community」一节。
