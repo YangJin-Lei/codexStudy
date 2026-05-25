@@ -1,4 +1,6 @@
 # CodexStudy desktop installers (public repo: standard GitHub-hosted runners are free).
+# This is the ONLY workflow that should auto-run on YangJin-Lei/codexStudy (push main / tags).
+# All other workflows in .github/workflows/ are upstream-only (openai/codex) and are disabled on this fork.
 # - push main / workflow_dispatch / push tag v*: Windows NSIS + Linux AppImage + macOS DMG
 name: CodexStudy Release Build
 

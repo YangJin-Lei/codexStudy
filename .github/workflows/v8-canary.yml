@@ -1,18 +1,7 @@
 name: v8-canary
+# Upstream-only on openai/codex. Disabled on CodexStudy fork (use codexstudy-release.yml).
 
 on:
-  pull_request:
-    paths:
-      - ".github/actions/setup-bazel-ci/**"
-      - ".github/scripts/rusty_v8_bazel.py"
-      - ".github/workflows/rusty-v8-release.yml"
-      - ".github/workflows/v8-canary.yml"
-      - "MODULE.bazel"
-      - "MODULE.bazel.lock"
-      - "codex-rs/Cargo.toml"
-      - "patches/BUILD.bazel"
-      - "patches/v8_*.patch"
-      - "third_party/v8/**"
   workflow_dispatch:
 
 concurrency:
@@ -21,6 +10,7 @@ concurrency:
 
 jobs:
   metadata:
+    if: github.repository == 'openai/codex'
     runs-on: ubuntu-latest
     outputs:
       v8_version: ${{ steps.v8_version.outputs.version }}
@@ -45,6 +35,7 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
   build:
+    if: github.repository == 'openai/codex'
     name: Build ${{ matrix.target }}
     needs: metadata
     runs-on: ${{ matrix.runner }}

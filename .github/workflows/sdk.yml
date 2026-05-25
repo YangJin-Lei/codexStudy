@@ -1,7 +1,7 @@
 name: sdk
 
 on:
-  pull_request: {}
+  workflow_dispatch:
 
 jobs:
   python-sdk:

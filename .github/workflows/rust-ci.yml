@@ -1,11 +1,12 @@
 name: rust-ci
+# Upstream-only on openai/codex. Disabled on CodexStudy fork (use codexstudy-release.yml).
 on:
-  pull_request: {}
   workflow_dispatch:
 
 jobs:
   # --- Detect what changed so the fast PR workflow only runs relevant jobs ----
   changed:
+    if: github.repository == 'openai/codex'
     name: Detect changed areas
     runs-on: ubuntu-24.04
     outputs:
@@ -55,6 +56,7 @@ jobs:
 
   # --- Fast Cargo-native PR checks -------------------------------------------
   general:
+    if: github.repository == 'openai/codex'
     name: Format / etc
     runs-on: ubuntu-24.04
     needs: changed
@@ -74,6 +76,7 @@ jobs:
         run: cargo fmt -- --config imports_granularity=Item --check
 
   cargo_shear:
+    if: github.repository == 'openai/codex'
     name: cargo shear
     runs-on: ubuntu-24.04
     needs: changed
@@ -94,6 +97,7 @@ jobs:
         run: cargo shear --deny-warnings
 
   argument_comment_lint_package:
+    if: github.repository == 'openai/codex'
     name: Argument comment lint package
     runs-on: ubuntu-24.04
     needs: changed
@@ -145,6 +149,7 @@ jobs:
           RUST_MIN_STACK: "8388608" # 8 MiB
 
   argument_comment_lint_prebuilt:
+    if: github.repository == 'openai/codex'
     name: Argument comment lint - ${{ matrix.name }}
     runs-on: ${{ matrix.runs_on || matrix.runner }}
     timeout-minutes: ${{ matrix.timeout_minutes }}
@@ -194,6 +199,7 @@ jobs:
 
   # --- Gatherer job that you mark as the ONLY required status -----------------
   results:
+    if: github.repository == 'openai/codex'
     name: CI results (required)
     needs:
       [

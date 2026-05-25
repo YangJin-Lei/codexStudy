@@ -1,10 +1,12 @@
 name: blob-size-policy
+# Upstream-only on openai/codex. Disabled on CodexStudy fork (use codexstudy-release.yml).
 
 on:
-  pull_request: {}
+  workflow_dispatch:
 
 jobs:
   check:
+    if: github.repository == 'openai/codex'
     name: Blob size policy
     runs-on: ubuntu-24.04
     steps:

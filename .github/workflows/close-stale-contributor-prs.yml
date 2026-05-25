@@ -1,9 +1,8 @@
 name: Close stale contributor PRs
+# Upstream-only on openai/codex. Disabled on CodexStudy fork (use codexstudy-release.yml).
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 6 * * *"
 
 permissions:
   contents: read

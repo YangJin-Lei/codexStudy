@@ -47,6 +47,8 @@
 
 **公开仓库与费用：** [YangJin-Lei/codexStudy](https://github.com/YangJin-Lei/codexStudy) 为 **Public** 时，使用标准 `windows-latest` / `ubuntu-*` / `macos-latest` 跑本工作流 **一般不扣 GitHub Free 的 2000 分钟额度**（公开库标准 runner 免费）。若账户设置了 **Budget $0 + Stop usage**，仍可能拦截任务，与是否公开无关。
 
+**避免意外账单：** 根目录除 `codexstudy-release.yml` 外，上游 workflow（Bazel、rust-ci、rust-release 等）已改为 **仅 `openai/codex` 仓库** 才会执行 job（`workflow_dispatch` + `if: github.repository == 'openai/codex'`）。在 fork 上 **push/PR 不会**再自动跑 `macos-15-xlarge` 等计费 runner。`computer-use/.github/workflows/release.yml` 已改名为 `release.yml.disabled`（GitHub 本来也不会从子目录执行 workflow）。
+
 > 三端**并行**各编本机架构的 CLI + Tauri（不能共用 Linux 二进制给 Windows/macOS）。首次可能要 **2–4 小时/平台**；单 job 超时上限 **6 小时**（360 分钟）。macOS DMG 在 CI 上**未签名**。
 
 **常见失败：**
