@@ -10,13 +10,18 @@ on:
       - "v*"
   workflow_dispatch:
 
+# Do not cancel in-progress multi-platform builds when another push lands (e.g. README
+# edits). Otherwise Linux/macOS often die ~20m into `prepare:bundled-codex` with
+# "The operation was canceled" while Windows already finished.
 concurrency:
   group: codexstudy-release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # Lower peak RAM during full `codex-cli` / codex-tui (V8) release links on 7GB runners.
+  CARGO_BUILD_JOBS: 1
 
 jobs:
   build-windows:

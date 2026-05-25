@@ -49,6 +49,8 @@
 
 > 首次全量编译约 1–2 小时/平台，已启用 `rust-cache` 加速后续构建。macOS DMG 在 CI 上**未签名**，本机首次打开需在系统设置里允许。
 
+**若 Linux/macOS 在约 20 分钟报 `The operation was canceled`：** 多半是连续 push 触发了旧版 workflow 的「取消进行中任务」。当前 workflow 已关闭该行为；请在 Actions 里对失败 run 点 **Re-run failed jobs**，或只 **Run workflow**，不要连推多次 commit。
+
 ## 近期功能变更（摘要）
 
 - **安装包修复**：CLI 侧车改名为 `codexstudy-cli-*`，不再覆盖桌面主程序 `codexstudy.exe`。
