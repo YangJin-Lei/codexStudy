@@ -4,12 +4,12 @@
 </p>
 
 <p align="center">
-  <strong>AI coding desktop for learning and local development</strong><br />
+  <strong>AI coding desktop for daily dev, learning, and local work</strong><br />
   Your code stays on disk; the agent edits a sandbox copy—you review, then merge.
 </p>
 
 <p align="center">
-  <code>local data</code> · <code>safe sandbox</code> · <code>DeepSeek</code> · <code>graduation OSS</code>
+  <code>local data</code> · <code>safe sandbox</code> · <code>DeepSeek</code> · <code>installable OSS</code>
 </p>
 
 <p align="center">
@@ -29,21 +29,38 @@
 > Config is separate from upstream Codex CLI (`~/.codexStudy` by default). See [docs/CODEXSTUDY.md](./docs/CODEXSTUDY.md).
 
 > **Notice**  
-> This repo supports the author's **graduation project**. Features are still evolving and it is **not production-ready**. Please use [Issues](https://github.com/YangJin-Lei/codexStudy/issues) for feedback.
+> This project started as the author's **graduation thesis** OSS work, but **you can use it for everyday local development and office-style coding**—features, bugfixes, side projects, and coursework are all in scope.  
+> Core flows (desktop app, chat, safe sandbox, review/merge, rollback, DeepSeek, etc.) are already fairly complete; **new features and polish are still shipping**, with occasional rough edges—please [open Issues](https://github.com/YangJin-Lei/codexStudy/issues).
 
 ---
 
 ## What is CodexStudy
 
-**CodexStudy** = **desktop app** (Tauri + React) + **`codexstudy`** CLI for **students, thesis work, and self-paced learning**:
+**CodexStudy** = **desktop app** (Tauri + React) + **`codexstudy`** CLI—a local-first AI coding environment for **daily development, coursework, and personal/small-team projects**:
 
 | You care about | How we handle it |
 |----------------|------------------|
-| **Local-first** | Projects, sandbox copies, snapshots, and task logs stay on your machine by default |
-| **Learning** | Stream the full process; roll back mistakes—built for practice, not black-box edits |
+| **Local / daily work** | Projects, sandbox copies, snapshots, and logs stay on disk by default—suitable for everyday machine-side work |
+| **Learn as you go** | Stream the full process; roll back mistakes—also great for practice |
 | **Mainland China** | **DeepSeek** and other domestic-friendly OpenAI-compatible APIs—no ChatGPT login |
 
 Optional **Computer Use** automates desktop apps (browser, Office, etc.) inside a controlled workspace, alongside file isolation.
+
+### Ready to use today
+
+- **Regular development**: multi-workspace, threads, Composer, terminal, Git diff, models & API config (including DeepSeek)
+- **Safe mode (codex-new)**: isolated copy → streamed process → review & merge → rollback / edit traceback
+- **Computer Use**: desktop automation (needs local permissions and the bundled runtime)
+- **Install**: Windows NSIS builds on [Releases](https://github.com/YangJin-Lei/codexStudy/releases)
+
+### Still being polished
+
+- **i18n consistency** (some prompts still catching up)
+- **Security-mode environment binding**, first-time copy cost on large repos
+- **Linux AppImage**, auto-attaching CI builds to Releases, Docker-isolated tests, and more
+- **Upstream Codex merges** may require manual conflict resolution
+
+> Not a toy demo—you can treat it like a day-to-day IDE assistant; as a standalone product it is still iterating quickly, so **back up important work and prefer safe mode + rollback**.
 
 ---
 
@@ -159,6 +176,7 @@ codex/
 
 - Contains code from [openai/codex](https://github.com/openai/codex), under upstream **Apache-2.0** terms
 - **CodexStudy** is independently maintained and **not affiliated** with OpenAI's official Codex product
+- **Disclaimer**: provided as-is; for real work we recommend safe mode, regular backups, and managing your own API keys and local data
 
 ---
 

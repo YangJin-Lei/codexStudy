@@ -4,12 +4,12 @@
 </p>
 
 <p align="center">
-  <strong>面向学习与本地开发的 AI 编程桌面</strong><br />
+  <strong>面向日常开发、学习与本地办公的 AI 编程桌面</strong><br />
   代码、任务、快照默认留在本机；AI 在隔离副本里改，你审完再合并。
 </p>
 
 <p align="center">
-  <code>本地数据</code> · <code>安全隔离</code> · <code>DeepSeek</code> · <code>毕业设计开源</code>
+  <code>本地数据</code> · <code>安全隔离</code> · <code>DeepSeek</code> · <code>开源可安装</code>
 </p>
 
 <p align="center">
@@ -29,21 +29,38 @@
 > 配置与官方 Codex CLI 分离，默认目录 **`~/.codexStudy`**。详见 [docs/CODEXSTUDY.md](./docs/CODEXSTUDY.md)。
 
 > **项目说明**  
-> 本项目为作者**毕业设计**相关的开源实践，部分功能仍在完善中，**不建议用于生产环境**；问题与建议请走 [Issues](https://github.com/YangJin-Lei/codexStudy/issues)。
+> 本项目源于作者**毕业设计**的开源实践，但**已可用于日常本地开发与办公**：写业务代码、改 Bug、做小工具、毕设/自学均可。  
+> 核心流程（桌面端、对话、安全隔离、审核合并、回滚、DeepSeek 等）已较完整；**新能力与体验细节仍在持续优化**，偶有小瑕疵欢迎 [Issues](https://github.com/YangJin-Lei/codexStudy/issues) 反馈。
 
 ---
 
 ## CodexStudy 是什么
 
-**CodexStudy** = **图形桌面端**（Tauri + React）+ 终端 **`codexstudy`**，给**学生、毕设、自学练手**用的本地 AI 编程环境：
+**CodexStudy** = **图形桌面端**（Tauri + React）+ 终端 **`codexstudy`**，本地优先的 AI 编程环境，适合**日常写代码、课程/毕设、个人与小团队项目**：
 
 | 你关心的 | 我们怎么做的 |
 |----------|----------------|
-| **本地** | 项目、隔离副本、回溯快照、任务记录默认在磁盘；除模型 API 外不主动上传源码 |
-| **学习** | 过程可见（读文件 / 跑命令 / 改代码时间线），改坏了能回滚，适合边做边学 |
+| **本地 / 办公** | 项目、隔离副本、回溯快照、任务记录默认在磁盘；除模型 API 外不主动上传源码，适合日常在本机干活 |
+| **学得明白** | 过程可见（读文件 / 跑命令 / 改代码时间线），改坏了能回滚，也适合边做边学 |
 | **中国大陆** | 内置 **DeepSeek** 等国内常用兼容接口，不绑 ChatGPT 登录 |
 
 可选 **Computer Use**：在本机受控环境里操作浏览器、Office 等（与文件隔离策略配合）。
+
+### 现在就能做什么
+
+- **正常开发**：多工作区、线程对话、Composer、终端、Git diff、模型与 API 配置（含 DeepSeek）
+- **安全模式（codex-new）**：隔离副本 → 流式过程 → 审核合并 → 回滚 / 编辑回溯
+- **Computer Use**：桌面应用自动化（需本机权限与 bundled 运行时）
+- **安装使用**：Windows NSIS 安装包见 [Releases](https://github.com/YangJin-Lei/codexStudy/releases)
+
+### 还在打磨什么
+
+- 界面与文案的**中英文一致性**（部分提示仍在优化）
+- 安全模式下的**环境绑定**、大项目首次拷贝耗时
+- **Linux AppImage**、自动挂 Release、Docker 隔离测试等后续能力
+- 与上游 Codex 同步时的**合并冲突**需自行关注
+
+> 不是「实验室 demo」——你可以像日常 IDE 助手一样用；只是作为独立产品仍在快速迭代，**重要项目请自行备份 + 习惯用安全模式与回滚**。
 
 ---
 
@@ -159,6 +176,7 @@ codex/
 
 - 含基于 [openai/codex](https://github.com/openai/codex) 的代码，遵循上游 **Apache-2.0** 要求
 - 产品名 **CodexStudy** 由维护者独立发布，与 OpenAI 官方 Codex 产品**无隶属关系**
+- **免责声明**：软件按「现状」提供；用于工作项目时建议开启安全模式、定期备份，并对 API 密钥与本地数据自行负责
 
 ---
 
