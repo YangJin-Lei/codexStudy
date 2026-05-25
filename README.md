@@ -45,22 +45,33 @@ Upstream Codex install docs are in **[Upstream reference](#upstream-openai-codex
 
 ## Features (codex-new safe workflow)
 
-The desktop **codex-new** stack (`desktop/` + `codex-rs/codex-new-core/`) keeps the AI from writing your original project directly. Full design: [codex-new.md](./codex-new.md).
+If you have ever yelled at an agent that edits your repo in place, you have probably said something like:
+
+> **“Why the hell did you delete my files?!”**  
+> **“Where did my source code go?!”**  
+> **“I asked for one line. Why did half the project get rewritten?”**  
+> **“I merged and *then* noticed everything is wrong. Git says clean working tree. Thanks.”**  
+> **“My UI is in Chinese. Why is the approval dialog in English?”**
+
+So we built **codex-new safe mode**: not to make the AI timid—to keep your **real project alive** until you explicitly accept changes.
 
 <p align="center">
   <img src="./docs/images/codexNewEN.png" alt="codex-new safe mode" width="88%" />
 </p>
 
-| # | Capability |
-|---|------------|
-| 1 | **Streaming process** — timeline of reads, commands, and edits, not only the final diff |
-| 2 | **Isolated workspace** — auto clone/worktree; the agent only writes to the copy |
-| 3 | **Review & merge** — human or AI review; merge only confirmed hunks after tests |
-| 4 | **Rollback (traceback)** — per-file snapshots to restore after mistaken merges |
-| 5 | **Summaries & memory** — per-turn summaries and candidate memory you can apply or skip |
-| 6 | **Isolated testing** (optional) — run tests on project/copy; Docker env is planned |
+| What you shouted | What we shipped |
+|------------------|-----------------|
+| “Stop touching my main tree!” | **Isolated workspace** — the agent writes only to a copy |
+| “Deletes are permanent?” | **Review before merge** — nothing hits the main project until you approve |
+| “Undo after merge?” | **Rollback** — pre-merge snapshots; per file or per hunk |
+| “I can’t see what it did” | **Streaming process** — reads, commands, and edits on a timeline |
+| “What about files deleted only in the copy?” | **Edit traceback** — project vs copy pairs; restore before/after merge |
+| “Tests failed—why merge?” | **Isolated testing** (optional) — run commands first, merge later |
+| “What did it remember?” | **Summaries & memory** — you choose what gets written |
 
-Implementation: `desktop/src/features/codex-new/`, `codex-rs/codex-new-core/` (`traceback.rs`, `memory.rs`, `engine.rs`).
+Stack: `desktop/` + `codex-rs/codex-new-core/`. Design: [codex-new.md](./codex-new.md). Code: `traceback.rs`, `memory.rs`, `engine.rs`.
+
+**TL;DR:** the agent can experiment in a sandbox; **your main project moves only when you merge.**
 
 ---
 
