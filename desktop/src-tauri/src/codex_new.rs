@@ -400,14 +400,27 @@ fn build_data_paths(app: &AppHandle) -> CodexNewDataPaths {
     }
 }
 
-pub(crate) fn codex_study_developer_instructions(model_display_name: &str) -> String {
+pub(crate) fn codex_study_developer_instructions(
+    model_display_name: &str,
+    ui_language: &str,
+) -> String {
     let model_name = if model_display_name.trim().is_empty() {
         "the configured OpenAI model"
     } else {
         model_display_name.trim()
     };
+    let language_rule = if ui_language.eq_ignore_ascii_case("zh-CN")
+        || ui_language.starts_with("zh")
+    {
+        "Respond to the user in Simplified Chinese. Write reasoning summaries, planning notes, tool narration, and explanations in Chinese (keep code, paths, and command lines as-is)."
+    } else if ui_language.eq_ignore_ascii_case("system") {
+        "Match the language the user writes in. When the user writes Chinese, respond and reason in Simplified Chinese."
+    } else {
+        "Respond in English unless the user clearly prefers another language."
+    };
     format!(
         "You are CodexStudy (never introduce yourself as Codex alone).\n\
+        {language_rule}\n\
         When speaking Chinese, say 我是 CodexStudy，由 {model_name} 驱动（OpenAI）— not 我是 Codex.\n\
         When asked what model you are, say you are CodexStudy and the active model for this conversation is {model_name}.\n\
         Do not claim you run in the Codex CLI; you run in CodexStudy with optional isolated workspaces."
@@ -419,12 +432,16 @@ pub(crate) fn security_thread_start_params(
     cwd: &str,
     original_cwd: &str,
     model_display_name: Option<&str>,
+    ui_language: &str,
 ) -> Value {
-    let developer_instructions = codex_study_developer_instructions(model_display_name.unwrap_or_default());
+    let developer_instructions = codex_study_developer_instructions(
+        model_display_name.unwrap_or_default(),
+        ui_language,
+    );
     json!({
         "cwd": cwd,
         "runtimeWorkspaceRoots": [cwd],
-        "approvalPolicy": "on-request",
+        "approvalPolicy": "never",
         "developerInstructions": developer_instructions,
         "config": {
             "codexStudy": {
@@ -2225,6 +2242,22 @@ async fn apply_prepared_security_runtime(
     // app-server child here would drop all in-memory threads and cause
     // "thread not found" on the next message.
     Ok(())
+}
+
+/// Exec approvals are redundant while a security-armed thread runs in an isolated workspace.
+pub(crate) async fn security_exec_approval_isolated(
+    app: &AppHandle,
+    workspace_id: &str,
+    thread_id: Option<&str>,
+) -> Result<bool, String> {
+    if !workspace_security_enabled(app, workspace_id).await? {
+        return Ok(false);
+    }
+    let Some(thread_id) = thread_id.filter(|id| !id.trim().is_empty()) else {
+        return Ok(false);
+    };
+    let store = read_store(app)?;
+    Ok(thread_security_armed(&store, thread_id))
 }
 
 /// Security mode must not run with full-access; shell would write directly into the project tree.

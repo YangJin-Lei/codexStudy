@@ -120,6 +120,7 @@ pub(crate) async fn start_thread(
         .await;
     }
 
+    let ui_language = state.app_settings.lock().await.ui_language.clone();
     let security_cwd =
         crate::codex_new::prepare_workspace_for_thread(&app, &state, &workspace_id, None).await?;
     if let Some(cwd) = security_cwd {
@@ -140,6 +141,7 @@ pub(crate) async fn start_thread(
                     &cwd,
                     &original_cwd,
                     model_display_name.as_deref(),
+                    &ui_language,
                 ),
             )
             .await?;
@@ -168,8 +170,9 @@ pub(crate) async fn start_thread(
         .map(str::trim)
         .filter(|name| !name.is_empty())
     {
-        params["developerInstructions"] =
-            json!(crate::codex_new::codex_study_developer_instructions(model_name));
+        params["developerInstructions"] = json!(
+            crate::codex_new::codex_study_developer_instructions(model_name, &ui_language)
+        );
     }
     let session = codex_core::get_session_clone(&state.sessions, &workspace_id).await?;
     session
@@ -199,6 +202,7 @@ pub(crate) async fn resume_thread(
         .await;
     }
 
+    let ui_language = state.app_settings.lock().await.ui_language.clone();
     let security_cwd = crate::codex_new::prepare_workspace_for_thread(
         &app,
         &state,
@@ -212,14 +216,16 @@ pub(crate) async fn resume_thread(
             "threadId": thread_id,
             "cwd": cwd,
             "runtimeWorkspaceRoots": [cwd],
+            "approvalPolicy": "never",
         });
         if let Some(model_name) = model_display_name
             .as_deref()
             .map(str::trim)
             .filter(|name| !name.is_empty())
         {
-            params["developerInstructions"] =
-                json!(crate::codex_new::codex_study_developer_instructions(model_name));
+            params["developerInstructions"] = json!(
+                crate::codex_new::codex_study_developer_instructions(model_name, &ui_language)
+            );
         }
         return session
             .send_request_for_workspace(&workspace_id, "thread/resume", params)
@@ -236,7 +242,10 @@ pub(crate) async fn resume_thread(
                 "thread/resume",
                 json!({
                     "threadId": thread_id,
-                    "developerInstructions": crate::codex_new::codex_study_developer_instructions(model_name),
+                    "developerInstructions": crate::codex_new::codex_study_developer_instructions(
+                        model_name,
+                        &ui_language
+                    ),
                 }),
             )
             .await;
@@ -550,6 +559,18 @@ pub(crate) async fn send_user_message(
         access_mode,
     )
     .await?;
+    let approval_policy_override =
+        if crate::codex_new::security_exec_approval_isolated(
+            &app,
+            &workspace_id,
+            Some(thread_id.as_str()),
+        )
+        .await?
+        {
+            Some("never".to_string())
+        } else {
+            None
+        };
     codex_core::send_user_message_core(
         &state.sessions,
         &state.workspaces,
@@ -567,6 +588,7 @@ pub(crate) async fn send_user_message(
         collaboration_mode,
         Some(workspace_path.clone()),
         Some(vec![workspace_path]),
+        approval_policy_override,
     )
     .await
 }

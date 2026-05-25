@@ -602,6 +602,7 @@ pub(crate) async fn send_user_message_core(
     collaboration_mode: Option<Value>,
     cwd_override: Option<String>,
     runtime_workspace_roots: Option<Vec<String>>,
+    approval_policy_override: Option<String>,
 ) -> Result<Value, String> {
     let session = get_session_clone(sessions, &workspace_id).await?;
     let workspace_path = match cwd_override {
@@ -622,11 +623,13 @@ pub(crate) async fn send_user_message_core(
         }),
     };
 
-    let approval_policy = if access_mode == "full-access" {
-        "never"
-    } else {
-        "on-request"
-    };
+    let approval_policy = approval_policy_override.unwrap_or_else(|| {
+        if access_mode == "full-access" {
+            "never".to_string()
+        } else {
+            "on-request".to_string()
+        }
+    });
 
     let (text, images) =
         maybe_apply_vision_fallback(app_settings, model.as_deref(), text, images).await?;
@@ -641,7 +644,7 @@ pub(crate) async fn send_user_message_core(
         "runtimeWorkspaceRoots".to_string(),
         json!(runtime_workspace_roots),
     );
-    params.insert("approvalPolicy".to_string(), json!(approval_policy));
+    params.insert("approvalPolicy".to_string(), json!(approval_policy.as_str()));
     params.insert("sandboxPolicy".to_string(), json!(sandbox_policy));
     params.insert("model".to_string(), json!(model));
     params.insert("effort".to_string(), json!(effort));

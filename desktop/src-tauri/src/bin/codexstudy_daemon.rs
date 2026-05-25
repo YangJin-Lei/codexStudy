@@ -833,6 +833,7 @@ impl DaemonState {
             collaboration_mode,
             None,
             None,
+            None,
         )
         .await
     }
