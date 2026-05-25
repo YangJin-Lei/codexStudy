@@ -1,6 +1,5 @@
-# CodexStudy desktop installers.
-# - push main / workflow_dispatch: Windows NSIS only (no macOS)
-# - push tag v*: Windows NSIS + Linux AppImage (no macOS)
+# CodexStudy desktop installers (public repo: standard GitHub-hosted runners are free).
+# - push main / workflow_dispatch / push tag v*: Windows NSIS + Linux AppImage + macOS DMG
 name: CodexStudy Release Build
 
 on:
@@ -81,7 +80,7 @@ jobs:
 
   build-linux:
     name: Linux (AppImage)
-    if: github.repository == 'YangJin-Lei/codexStudy' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
+    if: github.repository == 'YangJin-Lei/codexStudy'
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     steps:
@@ -110,6 +109,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            build-essential \
+            cmake \
             libwebkit2gtk-4.1-dev \
             libgtk-3-dev \
             libayatana-appindicator3-dev \
@@ -145,5 +146,67 @@ jobs:
         with:
           name: codexstudy-appimage-Linux
           path: desktop/src-tauri/target/release/bundle/appimage/*
+          if-no-files-found: error
+          retention-days: 30
+
+  build-macos:
+    name: macOS (DMG)
+    if: github.repository == 'YangJin-Lei/codexStudy'
+    runs-on: macos-latest
+    timeout-minutes: 150
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            codex-rs
+            desktop/src-tauri
+
+      - name: Install macOS build dependencies
+        run: brew install cmake
+
+      - name: Install workspace dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Doctor
+        working-directory: desktop
+        run: sh scripts/doctor.sh --strict
+
+      - name: Prepare bundled Codex CLI
+        working-directory: desktop
+        run: corepack pnpm prepare:bundled-codex --release
+
+      - name: Prepare bundled Computer Use
+        working-directory: desktop
+        run: corepack pnpm prepare:bundled-computer-use --release
+
+      - name: Build Tauri DMG bundle
+        working-directory: desktop
+        run: >
+          corepack pnpm exec tauri build
+          --bundles dmg
+          --config src-tauri/tauri.conf.json
+        env:
+          CI: true
+
+      - name: Upload macOS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: codexstudy-dmg-macOS
+          path: desktop/src-tauri/target/release/bundle/dmg/*
           if-no-files-found: error
           retention-days: 30

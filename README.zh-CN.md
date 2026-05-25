@@ -51,13 +51,13 @@
 - **正常开发**：多工作区、线程对话、Composer、终端、Git diff、模型与 API 配置（含 DeepSeek）
 - **安全模式（codex-new）**：隔离副本 → 流式过程 → 审核合并 → 回滚 / 编辑回溯
 - **Computer Use**：桌面应用自动化（需本机权限与 bundled 运行时）
-- **安装使用**：Windows NSIS 安装包见 [Releases](https://github.com/YangJin-Lei/codexStudy/releases)
+- **安装使用**：Windows / Linux / macOS 安装包见 [Releases](https://github.com/YangJin-Lei/codexStudy/releases) 或 [Actions 构建产物](https://github.com/YangJin-Lei/codexStudy/actions/workflows/codexstudy-release.yml)（`codexstudy-nsis-Windows`、`codexstudy-appimage-Linux`、`codexstudy-dmg-macOS`）
 
 ### 还在打磨什么
 
 - 界面与文案的**中英文一致性**（部分提示仍在优化）
 - 安全模式下的**环境绑定**、大项目首次拷贝耗时
-- **Linux AppImage**、自动挂 Release、Docker 隔离测试等后续能力
+- **自动挂 Release**、Docker 隔离测试等；CI 已支持 Win/Linux/macOS Artifacts，Release 页需手动上传或打 tag 后自行整理
 - 与上游 Codex 同步时的**合并冲突**需自行关注
 
 > 不是「实验室 demo」——你可以像日常 IDE 助手一样用；只是作为独立产品仍在快速迭代，**重要项目请自行备份 + 习惯用安全模式与回滚**。

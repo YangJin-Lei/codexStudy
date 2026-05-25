@@ -51,13 +51,13 @@ Optional **Computer Use** automates desktop apps (browser, Office, etc.) inside 
 - **Regular development**: multi-workspace, threads, Composer, terminal, Git diff, models & API config (including DeepSeek)
 - **Safe mode (codex-new)**: isolated copy → streamed process → review & merge → rollback / edit traceback
 - **Computer Use**: desktop automation (needs local permissions and the bundled runtime)
-- **Install**: Windows NSIS builds on [Releases](https://github.com/YangJin-Lei/codexStudy/releases)
+- **Install**: Win / Linux / macOS builds on [Releases](https://github.com/YangJin-Lei/codexStudy/releases) or [Actions artifacts](https://github.com/YangJin-Lei/codexStudy/actions/workflows/codexstudy-release.yml) (`codexstudy-nsis-Windows`, `codexstudy-appimage-Linux`, `codexstudy-dmg-macOS`)
 
 ### Still being polished
 
 - **i18n consistency** (some prompts still catching up)
 - **Security-mode environment binding**, first-time copy cost on large repos
-- **Linux AppImage**, auto-attaching CI builds to Releases, Docker-isolated tests, and more
+- Auto-attaching CI builds to Releases, Docker-isolated tests, and more; CI already builds Win/Linux/macOS artifacts—upload to Releases manually if needed
 - **Upstream Codex merges** may require manual conflict resolution
 
 > Not a toy demo—you can treat it like a day-to-day IDE assistant; as a standalone product it is still iterating quickly, so **back up important work and prefer safe mode + rollback**.

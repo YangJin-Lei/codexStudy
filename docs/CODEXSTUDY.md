@@ -31,12 +31,23 @@
 
 **触发方式：**
 
-1. 推送版本标签：`git tag v0.7.68 && git push origin v0.7.68`
-2. 在 GitHub **Actions** 页手动 **Run workflow**
+1. **推送到 `main`**（与 Windows 一样会并行打三端）
+2. 推送版本标签：`git tag v0.7.68 && git push origin v0.7.68`
+3. 在 GitHub **Actions** 页手动 **Run workflow**
 
-**产物：** 三个平台的安装包以 **Artifacts** 形式上传（Windows NSIS、macOS DMG、Linux AppImage），保留 30 天。可在 Actions 运行结束后下载，或后续配置 `release` 步骤自动挂到 [Releases](https://github.com/YangJin-Lei/codexStudy/releases)。
+**产物（Artifacts，保留 30 天）：**
 
-> 首次全量编译约 30–60 分钟/平台，已启用 `rust-cache` 加速后续构建。
+| 平台 | Artifact 名称 |
+|------|----------------|
+| Windows x64 | `codexstudy-nsis-Windows` |
+| Linux x64 | `codexstudy-appimage-Linux` |
+| macOS | `codexstudy-dmg-macOS` |
+
+可在 Actions 运行结束后下载，再手动上传到 [Releases](https://github.com/YangJin-Lei/codexStudy/releases)。
+
+**公开仓库与费用：** [YangJin-Lei/codexStudy](https://github.com/YangJin-Lei/codexStudy) 为 **Public** 时，使用标准 `windows-latest` / `ubuntu-*` / `macos-latest` 跑本工作流 **一般不扣 GitHub Free 的 2000 分钟额度**（公开库标准 runner 免费）。若账户设置了 **Budget $0 + Stop usage**，仍可能拦截任务，与是否公开无关。
+
+> 首次全量编译约 1–2 小时/平台，已启用 `rust-cache` 加速后续构建。macOS DMG 在 CI 上**未签名**，本机首次打开需在系统设置里允许。
 
 ## 近期功能变更（摘要）
 
