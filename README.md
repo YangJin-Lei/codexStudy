@@ -1,6 +1,15 @@
 <p align="center">
-  <strong>CodexStudy</strong><br />
-  Local-first AI coding desktop for learning and development
+  <strong style="font-size: 1.35em;">CodexStudy</strong><br />
+  <sub>Local-first · Learn by building · Ready for mainland China</sub>
+</p>
+
+<p align="center">
+  <strong>AI coding desktop for learning and local development</strong><br />
+  Your code stays on disk; the agent edits a sandbox copy—you review, then merge.
+</p>
+
+<p align="center">
+  <code>local data</code> · <code>safe sandbox</code> · <code>DeepSeek</code> · <code>graduation OSS</code>
 </p>
 
 <p align="center">
@@ -15,6 +24,10 @@
   <a href="./codex-new.md">codex-new Design</a>
 </p>
 
+> **🇨🇳 Mainland China**  
+> No ChatGPT or overseas account required. Open **Settings → Codex**, pick **DeepSeek** (or any OpenAI-compatible API), add your key, and start.  
+> Config is separate from upstream Codex CLI (`~/.codexStudy` by default). See [docs/CODEXSTUDY.md](./docs/CODEXSTUDY.md).
+
 > **Notice**  
 > This repo supports the author's **graduation project**. Features are still evolving and it is **not production-ready**. Please use [Issues](https://github.com/YangJin-Lei/codexStudy/issues) for feedback.
 
@@ -22,10 +35,15 @@
 
 ## What is CodexStudy
 
-**CodexStudy** is a **local-first** AI coding environment with a **desktop app** (Tauri + React) and the **`codexstudy`** CLI. The agent works in an **isolated project copy** while you **stream the process**, **review before merge**, **roll back file changes**, and optionally use **Computer Use** for desktop automation.
+**CodexStudy** = **desktop app** (Tauri + React) + **`codexstudy`** CLI for **students, thesis work, and self-paced learning**:
 
-- Default config home: **`~/.codexStudy`**, separate from upstream Codex CLI `~/.codex`
-- **Mainland China users**: no ChatGPT login required—set **DeepSeek** or other OpenAI-compatible APIs under **Settings → Codex**; build guide: [docs/CODEXSTUDY.md](./docs/CODEXSTUDY.md)
+| You care about | How we handle it |
+|----------------|------------------|
+| **Local-first** | Projects, sandbox copies, snapshots, and task logs stay on your machine by default |
+| **Learning** | Stream the full process; roll back mistakes—built for practice, not black-box edits |
+| **Mainland China** | **DeepSeek** and other domestic-friendly OpenAI-compatible APIs—no ChatGPT login |
+
+Optional **Computer Use** automates desktop apps (browser, Office, etc.) inside a controlled workspace, alongside file isolation.
 
 ---
 

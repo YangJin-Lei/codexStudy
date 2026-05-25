@@ -1,6 +1,15 @@
 <p align="center">
-  <strong>CodexStudy</strong><br />
-  面向学习与本地开发的 AI 编程桌面环境
+  <strong style="font-size: 1.35em;">CodexStudy</strong><br />
+  <sub>本地优先 · 学做项目 · 中国大陆可用</sub>
+</p>
+
+<p align="center">
+  <strong>面向学习与本地开发的 AI 编程桌面</strong><br />
+  代码、任务、快照默认留在本机；AI 在隔离副本里改，你审完再合并。
+</p>
+
+<p align="center">
+  <code>本地数据</code> · <code>安全隔离</code> · <code>DeepSeek</code> · <code>毕业设计开源</code>
 </p>
 
 <p align="center">
@@ -15,6 +24,10 @@
   <a href="./codex-new.md">codex-new 设计</a>
 </p>
 
+> **🇨🇳 中国大陆用户**  
+> 无需 ChatGPT / 境外账号。打开 **设置 → Codex**，选择 **DeepSeek**（或其它 OpenAI 兼容 API），填入 Key 即可开聊。  
+> 配置与官方 Codex CLI 分离，默认目录 **`~/.codexStudy`**。详见 [docs/CODEXSTUDY.md](./docs/CODEXSTUDY.md)。
+
 > **项目说明**  
 > 本项目为作者**毕业设计**相关的开源实践，部分功能仍在完善中，**不建议用于生产环境**；问题与建议请走 [Issues](https://github.com/YangJin-Lei/codexStudy/issues)。
 
@@ -22,10 +35,15 @@
 
 ## CodexStudy 是什么
 
-**CodexStudy** 是一款**本地优先**的 AI 编程环境：提供 **图形桌面端**（Tauri + React）和终端命令 **`codexstudy`**。AI 在隔离副本里改代码，你可以**流式观看过程**、**审核后再合并**、**按文件回溯**，并可选使用 **Computer Use** 控制本机应用。
+**CodexStudy** = **图形桌面端**（Tauri + React）+ 终端 **`codexstudy`**，给**学生、毕设、自学练手**用的本地 AI 编程环境：
 
-- 配置目录默认 **`~/.codexStudy`**，与官方 Codex CLI 的 `~/.codex` 隔离
-- **大陆用户**：无需 ChatGPT 登录；在 **设置 → Codex** 配置 **DeepSeek** 等 OpenAI 兼容 API 即可；构建说明见 [docs/CODEXSTUDY.md](./docs/CODEXSTUDY.md)
+| 你关心的 | 我们怎么做的 |
+|----------|----------------|
+| **本地** | 项目、隔离副本、回溯快照、任务记录默认在磁盘；除模型 API 外不主动上传源码 |
+| **学习** | 过程可见（读文件 / 跑命令 / 改代码时间线），改坏了能回滚，适合边做边学 |
+| **中国大陆** | 内置 **DeepSeek** 等国内常用兼容接口，不绑 ChatGPT 登录 |
+
+可选 **Computer Use**：在本机受控环境里操作浏览器、Office 等（与文件隔离策略配合）。
 
 ---
 
