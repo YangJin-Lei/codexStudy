@@ -47,9 +47,13 @@
 
 **公开仓库与费用：** [YangJin-Lei/codexStudy](https://github.com/YangJin-Lei/codexStudy) 为 **Public** 时，使用标准 `windows-latest` / `ubuntu-*` / `macos-latest` 跑本工作流 **一般不扣 GitHub Free 的 2000 分钟额度**（公开库标准 runner 免费）。若账户设置了 **Budget $0 + Stop usage**，仍可能拦截任务，与是否公开无关。
 
-> 首次全量编译约 1–2 小时/平台，已启用 `rust-cache` 加速后续构建。macOS DMG 在 CI 上**未签名**，本机首次打开需在系统设置里允许。
+> 三端**并行**各编本机架构的 CLI + Tauri（不能共用 Linux 二进制给 Windows/macOS）。首次可能要 **2–4 小时/平台**；单 job 超时上限 **6 小时**（360 分钟）。macOS DMG 在 CI 上**未签名**。
 
-**若 Linux/macOS 在约 20 分钟报 `The operation was canceled`：** 多半是连续 push 触发了旧版 workflow 的「取消进行中任务」。当前 workflow 已关闭该行为；请在 Actions 里对失败 run 点 **Re-run failed jobs**，或只 **Run workflow**，不要连推多次 commit。
+**常见失败：**
+
+- **`exceeded the maximum execution time of 2h30m0s`**：旧版上限 150 分钟不够；已改为 360 分钟，并去掉全局 `CARGO_BUILD_JOBS=1`（会把编译拖慢到超时）。
+- **`The operation was canceled`**：连续 push 取消旧 run；已关闭 `cancel-in-progress`，请 **Run workflow** 一次并少连推。
+- **Linux `exit code 1`**：点进 **Build codexstudy CLI (shared)** 或 **Linux** job 看最后 30 行真实 `error:`，不要只看 Summary。
 
 ## 近期功能变更（摘要）
 
