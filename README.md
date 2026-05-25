@@ -63,13 +63,13 @@ Upstream Codex install docs are in **[Upstream reference](#upstream-openai-codex
 
 ## Features (codex-new safe workflow)
 
-If you have ever yelled at an agent that edits your repo in place, you have probably said something like:
+If you have ever let an agent edit your repo in place, you have probably said something like this—**maybe not out loud, but definitely in your head**:
 
-> **“Why the hell did you delete my files?!”**  
-> **“Where did my source code go?!”**  
-> **“I asked for one line. Why did half the project get rewritten?”**  
-> **“I merged and *then* noticed everything is wrong. Git says clean working tree. Thanks.”**  
-> **“My UI is in Chinese. Why is the approval dialog in English?”**
+> **“Why the fuck did you delete my files?!”**  
+> **“Where the fuck did my source code go?!”**  
+> **“I asked for one line. Why did you rewrite half the fucking project?”**  
+> **“I merged and *then* noticed everything is wrong. Git says clean working tree. What the fuck.”**  
+> **“My UI is in Chinese. Why is the approval dialog in fucking English?”**
 
 So we built **codex-new safe mode**: not to make the AI timid—to keep your **real project alive** until you explicitly accept changes.
 
@@ -79,7 +79,7 @@ So we built **codex-new safe mode**: not to make the AI timid—to keep your **r
 
 | What you shouted | What we shipped |
 |------------------|-----------------|
-| “Stop touching my main tree!” | **Isolated workspace** — the agent writes only to a copy |
+| “Stop fucking touching my main tree!” | **Isolated workspace** — the agent writes only to a copy |
 | “Deletes are permanent?” | **Review before merge** — nothing hits the main project until you approve |
 | “Undo after merge?” | **Rollback** — pre-merge snapshots; per file or per hunk |
 | “I can’t see what it did” | **Streaming process** — reads, commands, and edits on a timeline |
