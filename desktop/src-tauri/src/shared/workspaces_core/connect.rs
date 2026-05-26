@@ -20,7 +20,7 @@ pub(crate) fn workspace_session_spawn_lock() -> &'static Mutex<()> {
     CONNECT_WORKSPACE_SPAWN_LOCK.get_or_init(|| Mutex::new(()))
 }
 
-async fn session_process_is_alive(session: &Arc<WorkspaceSession>) -> bool {
+pub(crate) async fn session_process_is_alive(session: &Arc<WorkspaceSession>) -> bool {
     let mut child = session.child.lock().await;
     matches!(child.try_wait(), Ok(None))
 }

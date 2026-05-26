@@ -83,6 +83,35 @@ pub(crate) async fn spawn_workspace_session(
     .await
 }
 
+async fn ensure_live_workspace_session(
+    workspace_id: &str,
+    state: &AppState,
+    app: &AppHandle,
+) -> Result<(), String> {
+    let needs_reconnect = {
+        let sessions = state.sessions.lock().await;
+        match sessions.get(workspace_id) {
+            None => true,
+            Some(session) => {
+                !crate::shared::workspaces_core::session_process_is_alive(session).await
+            }
+        }
+    };
+    if !needs_reconnect {
+        return Ok(());
+    }
+    crate::shared::workspaces_core::connect_workspace_core(
+        workspace_id.to_string(),
+        &state.workspaces,
+        &state.sessions,
+        &state.app_settings,
+        |entry, default_bin, codex_args, codex_home| {
+            spawn_workspace_session(entry, default_bin, codex_args, app.clone(), codex_home)
+        },
+    )
+    .await
+}
+
 #[tauri::command]
 pub(crate) async fn codex_doctor(
     codex_bin: Option<String>,
@@ -571,6 +600,7 @@ pub(crate) async fn send_user_message(
         } else {
             None
         };
+    ensure_live_workspace_session(&workspace_id, &state, &app).await?;
     codex_core::send_user_message_core(
         &state.sessions,
         &state.workspaces,

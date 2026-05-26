@@ -6,6 +6,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{json, Map, Value};
 use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 
@@ -48,6 +49,9 @@ pub(crate) struct CompatCapabilities {
 
 const TEXT_ONLY_MODALITIES: &[&str] = &["text"];
 const TEXT_AND_IMAGE_MODALITIES: &[&str] = &["text", "image"];
+const MAX_COMPAT_TOOL_OUTPUT_CHARS: usize = 12_000;
+const MAX_COMPAT_TOOL_SCHEMA_CHARS: usize = 8_192;
+const MAX_COMPAT_TOOL_SCHEMA_DEPTH: usize = 8;
 
 fn compat_runtime() -> &'static Mutex<Option<CompatBridgeRuntime>> {
     static RUNTIME: OnceLock<Mutex<Option<CompatBridgeRuntime>>> = OnceLock::new();
@@ -84,7 +88,10 @@ pub(crate) async fn ensure_running_for_app_settings(
             )
         })?;
     let state = CompatBridgeState {
-        client: reqwest::Client::new(),
+        client: reqwest::Client::builder()
+            .timeout(Duration::from_secs(180))
+            .build()
+            .map_err(|err| format!("Unable to create compatibility bridge HTTP client: {err}"))?,
         config: Arc::clone(&config),
     };
     let app = Router::new()
@@ -272,7 +279,7 @@ fn build_chat_completions_request(
     let capabilities = compat_capabilities(config, requested_model);
 
     let tools = body.get("tools").and_then(Value::as_array);
-    let (translated_tools, tool_index) = translate_tools(tools);
+    let (translated_tools, tool_index) = translate_tools(tools, config);
     let messages = translate_messages(
         body,
         &tool_index,
@@ -321,7 +328,156 @@ fn build_chat_completions_request(
             max_output_tokens.clone(),
         );
     }
-    Ok((Value::Object(request), tool_index))
+    let request_value = Value::Object(request);
+    validate_compat_request_body(&request_value)?;
+    Ok((request_value, tool_index))
+}
+
+fn validate_compat_request_body(request: &Value) -> Result<(), String> {
+    let serialized = serde_json::to_string(request).map_err(|err| err.to_string())?;
+    if serialized.len() > 256 * 1024 {
+        return Err(
+            "The translated model request is too large for this provider. Start a new thread or reduce tool history."
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn sanitize_tool_parameters(_config: &ModelProviderCompatSettings, parameters: Value) -> Value {
+    let parsed = match parameters {
+        Value::String(raw) => serde_json::from_str(&raw).unwrap_or_else(|_| {
+            json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": true,
+            })
+        }),
+        other => other,
+    };
+    let sanitized = sanitize_json_schema(&parsed, 0);
+    match serde_json::to_string(&sanitized) {
+        Ok(serialized) if serialized.len() > MAX_COMPAT_TOOL_SCHEMA_CHARS => json!({
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true,
+        }),
+        _ => sanitized,
+    }
+}
+
+fn sanitize_json_schema(value: &Value, depth: usize) -> Value {
+    if depth > MAX_COMPAT_TOOL_SCHEMA_DEPTH {
+        return json!({
+            "type": "object",
+            "additionalProperties": true,
+        });
+    }
+
+    match value {
+        Value::Object(map) => {
+            let mut sanitized = Map::new();
+            if let Some(value) = map.get("type").and_then(Value::as_str) {
+                sanitized.insert("type".to_string(), Value::String(value.to_string()));
+            }
+            if let Some(value) = map.get("description").and_then(Value::as_str) {
+                sanitized.insert(
+                    "description".to_string(),
+                    Value::String(truncate_compat_text(value, 512)),
+                );
+            }
+            if let Some(value) = map.get("enum") {
+                sanitized.insert("enum".to_string(), value.clone());
+            }
+            if let Some(value) = map.get("properties").and_then(Value::as_object) {
+                let mut properties = Map::new();
+                for (key, property) in value {
+                    properties.insert(
+                        key.clone(),
+                        sanitize_json_schema(property, depth.saturating_add(1)),
+                    );
+                }
+                sanitized.insert("properties".to_string(), Value::Object(properties));
+            }
+            if let Some(value) = map.get("required").and_then(Value::as_array) {
+                let required = value
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect::<Vec<_>>();
+                if !required.is_empty() {
+                    sanitized.insert("required".to_string(), json!(required));
+                }
+            }
+            if let Some(value) = map.get("items") {
+                sanitized.insert(
+                    "items".to_string(),
+                    sanitize_json_schema_items(value, depth.saturating_add(1)),
+                );
+            }
+            if sanitized.get("type").is_none() {
+                if sanitized.contains_key("properties") {
+                    sanitized.insert("type".to_string(), Value::String("object".to_string()));
+                } else if sanitized.contains_key("items") {
+                    sanitized.insert("type".to_string(), Value::String("array".to_string()));
+                } else {
+                    sanitized.insert("type".to_string(), Value::String("object".to_string()));
+                }
+            }
+            if sanitized.get("type").and_then(Value::as_str) == Some("object")
+                && !sanitized.contains_key("properties")
+            {
+                sanitized.insert("properties".to_string(), Value::Object(Map::new()));
+            }
+            sanitized.insert("additionalProperties".to_string(), Value::Bool(true));
+            Value::Object(sanitized)
+        }
+        _ => json!({
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true,
+        }),
+    }
+}
+
+fn sanitize_json_schema_items(value: &Value, depth: usize) -> Value {
+    match value {
+        Value::Object(map) if map.contains_key("type") || map.contains_key("properties") => {
+            sanitize_json_schema(value, depth)
+        }
+        Value::Array(values) if !values.is_empty() => {
+            sanitize_json_schema(&values[0], depth)
+        }
+        _ => json!({ "type": "string" }),
+    }
+}
+
+fn truncate_compat_text(text: &str, max_chars: usize) -> String {
+    if text.chars().count() <= max_chars {
+        return text.to_string();
+    }
+    text.chars().take(max_chars).collect::<String>()
+}
+
+fn truncate_compat_tool_output(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if trimmed.len() <= MAX_COMPAT_TOOL_OUTPUT_CHARS {
+        return text.to_string();
+    }
+    let looks_like_base64 = trimmed.len() > 256
+        && trimmed
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '/' | '=' | '\n' | '\r'));
+    if looks_like_base64 {
+        return "[Tool output omitted: screenshot/binary payload was too large for this model provider.]".to_string();
+    }
+    format!(
+        "{}\n\n[Tool output truncated for model provider compatibility.]",
+        truncate_compat_text(trimmed, MAX_COMPAT_TOOL_OUTPUT_CHARS)
+    )
 }
 
 fn copy_optional_request_key(body: &Value, request: &mut Map<String, Value>, key: &str) {
@@ -330,7 +486,10 @@ fn copy_optional_request_key(body: &Value, request: &mut Map<String, Value>, key
     }
 }
 
-fn translate_tools(tools: Option<&Vec<Value>>) -> (Vec<Value>, Vec<CompatToolDescriptor>) {
+fn translate_tools(
+    tools: Option<&Vec<Value>>,
+    config: &ModelProviderCompatSettings,
+) -> (Vec<Value>, Vec<CompatToolDescriptor>) {
     let Some(tools) = tools else {
         return (Vec::new(), Vec::new());
     };
@@ -340,7 +499,7 @@ fn translate_tools(tools: Option<&Vec<Value>>) -> (Vec<Value>, Vec<CompatToolDes
     for tool in tools {
         match tool.get("type").and_then(Value::as_str) {
             Some("function") => {
-                if let Some((descriptor, value)) = function_tool(None, tool) {
+                if let Some((descriptor, value)) = function_tool(config, None, tool) {
                     index.push(descriptor);
                     translated.push(value);
                 }
@@ -349,7 +508,7 @@ fn translate_tools(tools: Option<&Vec<Value>>) -> (Vec<Value>, Vec<CompatToolDes
                 let namespace = tool.get("name").and_then(Value::as_str);
                 if let Some(children) = tool.get("tools").and_then(Value::as_array) {
                     for child in children {
-                        if let Some((descriptor, value)) = function_tool(namespace, child) {
+                        if let Some((descriptor, value)) = function_tool(config, namespace, child) {
                             index.push(descriptor);
                             translated.push(value);
                         }
@@ -370,16 +529,19 @@ fn translate_tools(tools: Option<&Vec<Value>>) -> (Vec<Value>, Vec<CompatToolDes
                             .to_string(),
                     },
                 });
+                let parameters = tool.get("parameters").cloned().unwrap_or_else(|| {
+                    json!({
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": true,
+                    })
+                });
                 translated.push(json!({
                     "type": "function",
                     "function": {
                         "name": flat_name,
                         "description": tool.get("description").cloned().unwrap_or_else(|| json!("Search deferred tools.")),
-                        "parameters": tool.get("parameters").cloned().unwrap_or_else(|| json!({
-                            "type": "object",
-                            "properties": {},
-                            "additionalProperties": true,
-                        })),
+                        "parameters": sanitize_tool_parameters(config, parameters),
                     }
                 }));
             }
@@ -389,7 +551,11 @@ fn translate_tools(tools: Option<&Vec<Value>>) -> (Vec<Value>, Vec<CompatToolDes
     (translated, index)
 }
 
-fn function_tool(namespace: Option<&str>, tool: &Value) -> Option<(CompatToolDescriptor, Value)> {
+fn function_tool(
+    config: &ModelProviderCompatSettings,
+    namespace: Option<&str>,
+    tool: &Value,
+) -> Option<(CompatToolDescriptor, Value)> {
     let name = tool.get("name").and_then(Value::as_str)?.trim();
     if name.is_empty() {
         return None;
@@ -401,6 +567,13 @@ fn function_tool(namespace: Option<&str>, tool: &Value) -> Option<(CompatToolDes
         namespace: namespace.map(str::to_string),
         tool_type: CompatToolType::Function,
     };
+    let parameters = tool.get("parameters").cloned().unwrap_or_else(|| {
+        json!({
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true,
+        })
+    });
     Some((
         descriptor,
         json!({
@@ -408,12 +581,7 @@ fn function_tool(namespace: Option<&str>, tool: &Value) -> Option<(CompatToolDes
             "function": {
                 "name": flat_name,
                 "description": tool.get("description").cloned().unwrap_or_else(|| json!("")),
-                "parameters": tool.get("parameters").cloned().unwrap_or_else(|| json!({
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": true,
-                })),
-                "strict": tool.get("strict").cloned().unwrap_or(Value::Bool(false)),
+                "parameters": sanitize_tool_parameters(config, parameters),
             }
         }),
     ))
@@ -985,7 +1153,7 @@ fn value_text(value: Option<&Value>) -> Option<String> {
 }
 
 fn output_payload_text(output: &Value) -> String {
-    match output {
+    let text = match output {
         Value::String(text) => text.clone(),
         Value::Array(items) => items
             .iter()
@@ -999,7 +1167,8 @@ fn output_payload_text(output: &Value) -> String {
             .unwrap_or_else(|| output.to_string()),
         Value::Null => String::new(),
         _ => output.to_string(),
-    }
+    };
+    truncate_compat_tool_output(&text)
 }
 
 fn sse_failed_from_upstream(status: StatusCode, body: &str) -> String {
@@ -1568,7 +1737,7 @@ mod tests {
     }
 
     #[test]
-    fn build_chat_completions_request_rejects_image_input_for_text_only_compat() {
+    fn build_chat_completions_request_rewrites_image_input_for_text_only_compat() {
         let config = ModelProviderCompatSettings {
             kind: ModelProviderCompatKind::DeepSeek,
             upstream_base_url: "https://api.deepseek.com/v1".to_string(),
@@ -1583,12 +1752,13 @@ mod tests {
             }]
         });
 
-        let err = match build_chat_completions_request(&config, &body) {
-            Ok(_) => panic!("should reject"),
-            Err(err) => err,
-        };
-        assert!(err.contains("DeepSeek"));
-        assert!(err.contains("text input only"));
+        let (request, _) = build_chat_completions_request(&config, &body).expect("request");
+        let messages = request["messages"].as_array().expect("messages");
+        assert_eq!(messages.len(), 1);
+        assert_eq!(
+            messages[0]["content"].as_str(),
+            Some(text_only_image_placeholder())
+        );
     }
 
     #[test]

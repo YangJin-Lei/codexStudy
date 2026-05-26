@@ -72,7 +72,12 @@ function parseMcpServerLabel(response: unknown): { label: string; isError: boole
     }
     const record = item as Record<string, unknown>;
     const name = String(record.name ?? record.serverName ?? "").trim();
-    return name === "computer-use" || name === "open-computer-use";
+    return (
+      name === "computer-use" ||
+      name === "open-computer-use" ||
+      name.endsWith("/computer-use") ||
+      name.endsWith("/open-computer-use")
+    );
   }) as Record<string, unknown> | undefined;
   if (!match) {
     return { label: "Not connected", isError: true };
@@ -86,10 +91,12 @@ function parseMcpServerLabel(response: unknown): { label: string; isError: boole
 
 type UseSettingsComputerUseSectionArgs = {
   featureWorkspaceId: string | null;
+  computerUseWorkspaceId: string | null;
 };
 
 export function useSettingsComputerUseSection({
   featureWorkspaceId,
+  computerUseWorkspaceId,
 }: UseSettingsComputerUseSectionArgs): SettingsComputerUseSectionProps {
   const [status, setStatus] = useState<ComputerUseStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -105,9 +112,10 @@ export function useSettingsComputerUseSection({
     try {
       const nextStatus = normalizeComputerUseStatus(await getComputerUseStatus());
       setStatus(nextStatus);
-      if (featureWorkspaceId) {
+      const mcpWorkspaceId = computerUseWorkspaceId ?? featureWorkspaceId;
+      if (mcpWorkspaceId) {
         try {
-          const mcpResponse = await listMcpServerStatus(featureWorkspaceId, null, 100);
+          const mcpResponse = await listMcpServerStatus(mcpWorkspaceId, null, 100);
           const parsed = parseMcpServerLabel(mcpResponse);
           setMcpServerStatus(parsed.label);
           setMcpServerError(parsed.isError);
@@ -115,6 +123,9 @@ export function useSettingsComputerUseSection({
           setMcpServerStatus("Unavailable");
           setMcpServerError(true);
         }
+      } else if (nextStatus?.runtimeReady) {
+        setMcpServerStatus("Start a computer-use session");
+        setMcpServerError(true);
       } else {
         setMcpServerStatus(null);
         setMcpServerError(false);
@@ -127,7 +138,7 @@ export function useSettingsComputerUseSection({
     } finally {
       setStatusLoading(false);
     }
-  }, [featureWorkspaceId]);
+  }, [computerUseWorkspaceId, featureWorkspaceId]);
 
   useEffect(() => {
     void refreshStatus();

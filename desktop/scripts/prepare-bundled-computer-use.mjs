@@ -36,6 +36,10 @@ function run(command, args, options = {}) {
   }
 }
 
+function runShellScript(scriptPath, args, options = {}) {
+  run("bash", [scriptPath, ...args], options);
+}
+
 function goArchForNodeArch(arch) {
   switch (arch) {
     case "arm64":
@@ -101,7 +105,7 @@ function buildMacRuntime(configuration) {
   if (!existsSync(buildScript)) {
     throw new Error(`Missing macOS build script at ${buildScript}`);
   }
-  run(buildScript, [configuration]);
+  runShellScript(buildScript, [configuration]);
   const candidates = [
     join(computerUseRoot, "dist", "Open Computer Use.app"),
     join(computerUseRoot, "dist", "Open Computer Use (Dev).app"),

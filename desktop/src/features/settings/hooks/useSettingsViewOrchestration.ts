@@ -8,6 +8,7 @@ import type {
   WorkspaceSettings,
 } from "@/types";
 import { isMacPlatform, isWindowsPlatform } from "@utils/platformPaths";
+import { findComputerUseWorkspace } from "@/features/computer-use/computerUseStorage";
 import { useSettingsOpenAppDrafts } from "./useSettingsOpenAppDrafts";
 import { useSettingsShortcutDrafts } from "./useSettingsShortcutDrafts";
 import { useSettingsCodexSection } from "./useSettingsCodexSection";
@@ -109,6 +110,10 @@ export function useSettingsViewOrchestration({
   );
   const featureWorkspaceId = useMemo(
     () => projects.find((workspace) => workspace.connected)?.id ?? null,
+    [projects],
+  );
+  const computerUseWorkspaceId = useMemo(
+    () => findComputerUseWorkspace(projects)?.id ?? null,
     [projects],
   );
 
@@ -215,6 +220,7 @@ export function useSettingsViewOrchestration({
 
   const computerUseSectionProps = useSettingsComputerUseSection({
     featureWorkspaceId,
+    computerUseWorkspaceId,
   });
 
   const agentsSectionProps = useSettingsAgentsSection({ projects });
