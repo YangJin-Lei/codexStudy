@@ -14,9 +14,9 @@ import Workflow from "lucide-react/dist/esm/icons/workflow";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { PanelTabId } from "../../layout/components/PanelTabs";
+import { CodexNewStatusCard } from "../../codex-new/components/CodexNewStatusCard";
 import { PanelShell } from "../../layout/components/PanelShell";
 import { pushErrorToast } from "../../../services/toasts";
-import { CodexNewStatusCard } from "../../codex-new/components/CodexNewStatusCard";
 import {
   fileManagerName,
   isAbsolutePath as isAbsolutePathForPlatform,
@@ -48,7 +48,6 @@ import {
 import { useDiffFileSelection } from "../hooks/useDiffFileSelection";
 import type { GitPanelMode } from "../types";
 import type { PerFileDiffGroup } from "../utils/perFileThreadDiffs";
-import type { CodexNewSession } from "../../codex-new/types";
 
 type GitDiffPanelProps = {
   workspaceId?: string | null;
@@ -154,13 +153,10 @@ type GitDiffPanelProps = {
   codexNewActiveWorkspace?: import("@/types").WorkspaceInfo | null;
   codexNewActiveThreadId?: string | null;
   codexNewThreadsByWorkspace?: Record<string, import("@/types").ThreadSummary[]>;
-  codexNewActiveSession?: CodexNewSession | null;
-  codexNewActiveThreadRegistryEntry?: import("../../codex-new/types").CodexNewThreadRegistryEntry | null;
-  codexNewDataPaths?: import("../../codex-new/types").CodexNewFrontendState["dataPaths"];
+  codexNewActiveSession?: import("../../codex-new/types").CodexNewSession | null;
   onOpenCodexNewUi?: () => void | Promise<void>;
   onToggleCodexNewSecurity?: () => void | Promise<void>;
   onOpenCodexNewProcessWindow?: () => void | Promise<void>;
-  onOpenCodexNewTerminalWindow?: () => void | Promise<void>;
 };
 
 export function GitDiffPanel({
@@ -255,14 +251,12 @@ export function GitDiffPanel({
   codexNewActiveThreadId = null,
   codexNewThreadsByWorkspace = {},
   codexNewActiveSession = null,
-  codexNewActiveThreadRegistryEntry = null,
-  codexNewDataPaths,
   onOpenCodexNewUi,
   onToggleCodexNewSecurity,
   onOpenCodexNewProcessWindow,
-  onOpenCodexNewTerminalWindow,
 }: GitDiffPanelProps) {
-  const { t } = useI18n();
+  const { t, resolvedLanguage } = useI18n();
+  const isChinese = resolvedLanguage === "zh-CN";
   const [dismissedErrorSignatures, setDismissedErrorSignatures] = useState<Set<string>>(
     new Set(),
   );
@@ -669,6 +663,7 @@ export function GitDiffPanel({
 
   return (
     <PanelShell
+      className="git-diff-panel"
       filePanelMode={filePanelMode}
       onFilePanelModeChange={onFilePanelModeChange}
       headerClassName="git-panel-header"
@@ -680,7 +675,7 @@ export function GitDiffPanel({
               className="codex-new-toolbar-button is-icon-only"
               onClick={() => void onOpenCodexNewUi?.()}
               aria-label={t("codexNew.openUi", "codex-new UI")}
-              title={t("codexNew.openUi", "codex-new UI")}
+              title={isChinese ? "安全模式工作台" : "Safe mode workbench"}
             >
               <Workflow size={13} aria-hidden />
             </button>
@@ -733,17 +728,7 @@ export function GitDiffPanel({
         activeThreadId={codexNewActiveThreadId}
         threadsByWorkspace={codexNewThreadsByWorkspace}
         activeSession={codexNewActiveSession}
-        activeThreadRegistryEntry={codexNewActiveThreadRegistryEntry}
-        dataPaths={
-          codexNewDataPaths ?? {
-            codexHome: "",
-            codexNewRoot: "",
-            desktopStatePath: "",
-            legacyCodexHomes: [],
-          }
-        }
-        onOpenProcessWindow={() => void onOpenCodexNewProcessWindow?.()}
-        onOpenTerminalWindow={() => void onOpenCodexNewTerminalWindow?.()}
+        onOpenWorkbench={() => void onOpenCodexNewProcessWindow?.()}
       />
       <div className="git-panel-overview">
         <div className="git-panel-overview-status">

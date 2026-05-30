@@ -1,0 +1,112 @@
+.wb-panel-header {
+  flex-shrink: 0;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--wb-border-soft, var(--border));
+  background: var(--wb-panel-bg, var(--background-secondary));
+}
+
+.wb-panel-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.wb-panel-header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--wb-text, var(--foreground));
+}
+
+.wb-panel-header-meta {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--wb-text-muted, var(--foreground-muted));
+}
+
+.wb-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.55rem;
+}
+
+.wb-filter-pill {
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0.28rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid var(--wb-border-soft, var(--border));
+  background: var(--wb-shell-bg, var(--background));
+  color: var(--wb-text-muted, var(--foreground-muted));
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.wb-filter-pill:hover {
+  color: var(--wb-text, var(--foreground));
+  background: var(--wb-panel-muted, var(--background-tertiary));
+}
+
+.wb-filter-pill.is-active {
+  color: var(--wb-text, var(--foreground));
+  border-color: color-mix(in srgb, var(--wb-accent, var(--primary)) 45%, var(--wb-border-soft, var(--border)));
+  background: color-mix(in srgb, var(--wb-accent, var(--primary)) 14%, var(--wb-panel-bg, var(--background-secondary)));
+}
+
+.wb-select {
+  appearance: none;
+  min-width: 10rem;
+  max-width: 100%;
+  padding: 0.32rem 1.75rem 0.32rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid var(--wb-border-soft, var(--border));
+  background-color: var(--wb-panel-bg, var(--background-secondary));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.45rem center;
+  color: var(--wb-text, var(--foreground));
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.wb-select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wb-accent, var(--primary)) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.wb-select option {
+  background: var(--wb-panel-bg, var(--background-secondary));
+  color: var(--wb-text, var(--foreground));
+}
+
+.wb-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.5rem;
+  border-radius: 0.35rem;
+  border: 1px solid var(--wb-border-soft, var(--border));
+  background: var(--wb-panel-bg, var(--background));
+  color: var(--wb-text, var(--foreground));
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.wb-btn-ghost:hover:not(:disabled) {
+  background: var(--wb-panel-muted, var(--background-tertiary));
+}
+
+.wb-btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wb-btn-ghost.is-primary {
+  border-color: color-mix(in srgb, var(--wb-accent, var(--primary)) 40%, var(--wb-border-soft, var(--border)));
+  background: color-mix(in srgb, var(--wb-accent, var(--primary)) 16%, var(--wb-panel-bg, var(--background-secondary)));
+}

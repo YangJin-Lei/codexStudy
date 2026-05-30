@@ -67,7 +67,8 @@ fn read_desktop_store_unlocked(path: &Path) -> Result<CodexNewDesktopStore, Stri
     if !path.exists() {
         return Ok(CodexNewDesktopStore::default());
     }
-    let bytes = fs::read(path).map_err(|err| format!("Failed to read {}: {err}", path.display()))?;
+    let bytes =
+        fs::read(path).map_err(|err| format!("Failed to read {}: {err}", path.display()))?;
     match serde_json::from_slice::<CodexNewDesktopStore>(&bytes) {
         Ok(store) => Ok(store),
         Err(err) => {

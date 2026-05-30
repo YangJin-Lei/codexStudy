@@ -58,8 +58,17 @@ fn compat_runtime() -> &'static Mutex<Option<CompatBridgeRuntime>> {
     RUNTIME.get_or_init(|| Mutex::new(None))
 }
 
-pub(crate) fn base_url_for_kind(_kind: ModelProviderCompatKind) -> String {
+pub(crate) fn bridge_base_url() -> String {
     COMPAT_BRIDGE_BASE_URL.to_string()
+}
+
+pub(crate) fn base_url_for_kind(_kind: ModelProviderCompatKind) -> String {
+    bridge_base_url()
+}
+
+pub(crate) fn is_local_bridge_base_url(base_url: &str) -> bool {
+    let normalized = base_url.trim().to_ascii_lowercase();
+    normalized.contains("127.0.0.1:43189") || normalized.contains("localhost:43189")
 }
 
 pub(crate) async fn ensure_running_for_app_settings(
@@ -445,9 +454,7 @@ fn sanitize_json_schema_items(value: &Value, depth: usize) -> Value {
         Value::Object(map) if map.contains_key("type") || map.contains_key("properties") => {
             sanitize_json_schema(value, depth)
         }
-        Value::Array(values) if !values.is_empty() => {
-            sanitize_json_schema(&values[0], depth)
-        }
+        Value::Array(values) if !values.is_empty() => sanitize_json_schema(&values[0], depth),
         _ => json!({ "type": "string" }),
     }
 }
@@ -818,7 +825,22 @@ fn text_only_image_placeholder() -> &'static str {
     "[Image omitted: this thread is currently being translated for a text-only model.]"
 }
 
+fn normalize_tool_call_arguments(arguments: &str) -> String {
+    let trimmed = arguments.trim();
+    if trimmed.is_empty() {
+        return "{}".to_string();
+    }
+    if serde_json::from_str::<Value>(trimmed).is_ok() {
+        if trimmed.len() > 32_768 {
+            return "{}".to_string();
+        }
+        return trimmed.to_string();
+    }
+    "{}".to_string()
+}
+
 fn tool_call_json(call_id: &str, flat_name: &str, arguments: &str) -> Value {
+    let arguments = normalize_tool_call_arguments(arguments);
     json!({
         "id": call_id,
         "type": "function",
@@ -1459,6 +1481,17 @@ fn local_model_supports_image_input(slug: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn normalize_tool_call_arguments_rejects_invalid_json() {
+        let tool_call = tool_call_json("call_1", "shell", "not-json");
+        assert_eq!(
+            tool_call
+                .pointer("/function/arguments")
+                .and_then(Value::as_str),
+            Some("{}")
+        );
+    }
 
     #[test]
     fn translate_messages_attaches_reasoning_to_following_tool_call() {

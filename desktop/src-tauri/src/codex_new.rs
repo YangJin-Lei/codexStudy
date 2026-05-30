@@ -7,11 +7,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use codex_new_core::{
     CandidateMemoryRecord, ChangedFile, CodexNewCore, CommandExecutionKind, CommandRunStatus,
-    RollbackRequest, RollbackSelection,
     DiffBundle, HunkSelection, MemoryApplyOutcome, MergeRequest, MergeSelection, ProjectSettings,
-    ResolveTaskRequest, ReviewReport, StructuredTaskSummary, TaskManifest, TaskReusePolicy,
-    TaskStatus, TestExecutionRequest, TimelineEvent, TimelineEventKind, TracebackEntry,
-    TracebackRestoreOutcome, TracebackRestoreTarget, WorkspaceStrategy,
+    ResolveTaskRequest, ReviewReport, RollbackRequest, RollbackSelection, StructuredTaskSummary,
+    TaskManifest, TaskReusePolicy, TaskStatus, TestExecutionRequest, TimelineEvent,
+    TimelineEventKind, TracebackEntry, TracebackRestoreOutcome, TracebackRestoreTarget,
+    WorkspaceStrategy,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -21,14 +21,19 @@ use crate::backend::events::AppServerEvent;
 use crate::codex::args::resolve_workspace_codex_args;
 use crate::codex::home::{resolve_default_codex_home, resolve_workspace_codex_home};
 use crate::codex::spawn_workspace_session;
-use crate::shared::process_core::kill_child_process_tree;
-use crate::state::AppState;
 use crate::codex_new_store_io::{
     read_desktop_store, write_desktop_store, CodexNewDesktopStore, CodexNewWorkspaceRecord,
 };
+use crate::shared::process_core::kill_child_process_tree;
+use crate::state::AppState;
 use crate::types::WorkspaceEntry;
 
 pub(crate) use crate::codex_new_store_io::CodexNewThreadRegistryEntry;
+
+#[path = "codex_new_commands.rs"]
+mod codex_new_commands;
+#[path = "codex_new_security.rs"]
+mod codex_new_security;
 
 const MAX_PROCESS_ENTRIES: usize = 80;
 const MAX_TERMINAL_RUNS: usize = 40;
@@ -47,12 +52,8 @@ pub(crate) struct LiveWorkspaceState {
 #[derive(Debug, Clone)]
 enum ShellCommandRoute {
     Shell,
-    FileRead {
-        path: Option<String>,
-    },
-    FileWrite {
-        path: Option<String>,
-    },
+    FileRead { path: Option<String> },
+    FileWrite { path: Option<String> },
     Patch,
     InlineScript,
 }
@@ -273,6 +274,9 @@ pub(crate) struct CodexNewThreadTitleSync {
 pub(crate) struct CodexNewFilePreviewInput {
     workspace_id: String,
     path: String,
+    /// When set, read from a single root: `"project"` (original) or `"workspace"` (clone).
+    #[serde(default)]
+    root_side: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -385,9 +389,7 @@ fn build_data_paths(app: &AppHandle) -> CodexNewDataPaths {
         .map(|path| path.to_string_lossy().to_string())
         .unwrap_or_default();
     let codex_new_data_root = codex_new_root(app).to_string_lossy().to_string();
-    let desktop_state_path = desktop_state_path(app)
-        .to_string_lossy()
-        .to_string();
+    let desktop_state_path = desktop_state_path(app).to_string_lossy().to_string();
     let legacy_codex_homes = crate::codex::home::detect_legacy_codex_homes(Path::new(&codex_home))
         .into_iter()
         .map(|path| path.to_string_lossy().to_string())
@@ -434,10 +436,8 @@ pub(crate) fn security_thread_start_params(
     model_display_name: Option<&str>,
     ui_language: &str,
 ) -> Value {
-    let developer_instructions = codex_study_developer_instructions(
-        model_display_name.unwrap_or_default(),
-        ui_language,
-    );
+    let developer_instructions =
+        codex_study_developer_instructions(model_display_name.unwrap_or_default(), ui_language);
     json!({
         "cwd": cwd,
         "runtimeWorkspaceRoots": [cwd],
@@ -453,7 +453,10 @@ pub(crate) fn security_thread_start_params(
     })
 }
 
-fn local_folder_name_from_isolated_root(isolated_root: &str, workspace_name: &str) -> Option<String> {
+fn local_folder_name_from_isolated_root(
+    isolated_root: &str,
+    workspace_name: &str,
+) -> Option<String> {
     let normalized = isolated_root.replace('\\', "/");
     let marker = "/workspaces/";
     let Some(index) = normalized.to_ascii_lowercase().find(marker) else {
@@ -484,8 +487,8 @@ fn register_thread_in_store(
     isolated_root: Option<&str>,
     thread_title: Option<&str>,
 ) {
-    let local_folder_name = isolated_root
-        .and_then(|path| local_folder_name_from_isolated_root(path, workspace_name));
+    let local_folder_name =
+        isolated_root.and_then(|path| local_folder_name_from_isolated_root(path, workspace_name));
     let thread_title = thread_title
         .map(str::trim)
         .filter(|title| !title.is_empty())
@@ -516,7 +519,11 @@ fn register_thread_in_store(
 }
 
 fn apply_session_input_metadata(store: &mut CodexNewDesktopStore, input: &CodexNewSessionInput) {
-    let Some(thread_id) = input.thread_id.as_deref().filter(|id| !id.trim().is_empty()) else {
+    let Some(thread_id) = input
+        .thread_id
+        .as_deref()
+        .filter(|id| !id.trim().is_empty())
+    else {
         return;
     };
     let Some(entry) = store.thread_registry.get_mut(thread_id) else {
@@ -561,9 +568,7 @@ pub(crate) async fn register_workspace_thread(
     );
     let mut record = record;
     record.thread_id = Some(thread_id.to_string());
-    store
-        .sessions
-        .insert(workspace_id.to_string(), record);
+    store.sessions.insert(workspace_id.to_string(), record);
     write_store(app, &store)
 }
 
@@ -879,6 +884,41 @@ fn read_file_preview(roots: &[PathBuf], path: &str) -> CodexNewFilePreview {
     }
 }
 
+fn read_file_preview_from_root(root: &Path, path: &str) -> CodexNewFilePreview {
+    try_read_file_preview(root, path).unwrap_or(CodexNewFilePreview {
+        path: path.to_string(),
+        status: CodexNewFilePreviewStatus::Missing,
+        content: String::new(),
+        truncated: false,
+    })
+}
+
+fn resolve_session_preview_root(
+    app: &AppHandle,
+    workspace_id: &str,
+    root_side: &str,
+) -> Result<PathBuf, String> {
+    let record = resolve_session_record(app, workspace_id)?;
+    let core = core_for_app(app);
+    if let Ok(overview) = core.get_task_overview(&record.project_id, &record.task_id) {
+        let root = match root_side {
+            "project" => overview.manifest.original_root,
+            "workspace" => overview.manifest.workspace_root,
+            _ => {
+                return Err(format!(
+                    "Unsupported preview root side: {root_side} (expected project or workspace)"
+                ));
+            }
+        };
+        return Ok(root);
+    }
+    if root_side == "project" {
+        Ok(PathBuf::from(record.original_workspace_path))
+    } else {
+        Err("Workspace preview is unavailable until the task overview is loaded".to_string())
+    }
+}
+
 fn normalize_workspace_path(value: &str) -> String {
     let normalized = value.replace('\\', "/");
     let normalized = normalized.trim_end_matches('/');
@@ -999,7 +1039,9 @@ fn contains_token(command: &str, tokens: &[&str]) -> bool {
 
 fn extract_quoted_or_trailing_path(command: &str, verbs: &[&str]) -> Option<String> {
     let lower = command.to_ascii_lowercase();
-    let verb = verbs.iter().find(|verb| lower.contains(&verb.to_ascii_lowercase()))?;
+    let verb = verbs
+        .iter()
+        .find(|verb| lower.contains(&verb.to_ascii_lowercase()))?;
     let after = command[lower.find(&verb.to_ascii_lowercase())? + verb.len()..].trim();
     if let Some((_, rest)) = after.split_once('"') {
         return rest.split_once('"').map(|(path, _)| path.to_string());
@@ -1026,10 +1068,7 @@ fn extract_powershell_path_flag(command: &str) -> Option<String> {
         if let Some((_, rest)) = after.split_once('\'') {
             return rest.split_once('\'').map(|(path, _)| path.to_string());
         }
-        return after
-            .split_whitespace()
-            .next()
-            .map(ToOwned::to_owned);
+        return after.split_whitespace().next().map(ToOwned::to_owned);
     }
     None
 }
@@ -1041,7 +1080,10 @@ fn classify_shell_command(command: &str) -> ShellCommandRoute {
     }
     if contains_token(&normalized, &["get-content", "gc", "cat", "type"]) {
         return ShellCommandRoute::FileRead {
-            path: extract_quoted_or_trailing_path(&normalized, &["Get-Content", "gc", "cat", "type"]),
+            path: extract_quoted_or_trailing_path(
+                &normalized,
+                &["Get-Content", "gc", "cat", "type"],
+            ),
         };
     }
     let write_path = extract_powershell_path_flag(&normalized).or_else(|| {
@@ -1166,11 +1208,7 @@ fn collect_workspace_path_aliases(
 fn format_environment_summary(binding: &codex_new_core::EnvironmentBinding) -> String {
     let mut parts = Vec::new();
     for tool in &binding.detected_tools {
-        parts.push(format!(
-            "{}: {}",
-            tool.name,
-            tool.executable.display()
-        ));
+        parts.push(format!("{}: {}", tool.name, tool.executable.display()));
     }
     parts.extend(binding.validation.notes.clone());
     if parts.is_empty() {
@@ -1382,11 +1420,11 @@ async fn mirror_item_lifecycle(
             let terminal_label = shell_command_terminal_label(&route, &command);
             if !route.mirrors_terminal_output() {
                 let files = match &route {
-                    ShellCommandRoute::FileRead { path } | ShellCommandRoute::FileWrite { path } => {
-                        path.as_ref()
-                            .map(|target| file_refs_from_paths(vec![target.clone()]))
-                            .unwrap_or_default()
-                    }
+                    ShellCommandRoute::FileRead { path }
+                    | ShellCommandRoute::FileWrite { path } => path
+                        .as_ref()
+                        .map(|target| file_refs_from_paths(vec![target.clone()]))
+                        .unwrap_or_default(),
                     _ => Vec::new(),
                 };
                 upsert_live_process_entry(
@@ -1625,7 +1663,10 @@ pub(crate) async fn mirror_app_server_event(app: AppHandle, event: AppServerEven
 
 fn read_output_excerpt(path: &Path) -> String {
     match fs::read(path) {
-        Ok(bytes) => trim_text(String::from_utf8_lossy(&bytes).into_owned(), MAX_OUTPUT_CHARS),
+        Ok(bytes) => trim_text(
+            String::from_utf8_lossy(&bytes).into_owned(),
+            MAX_OUTPUT_CHARS,
+        ),
         Err(_) => String::new(),
     }
 }
@@ -1918,14 +1959,12 @@ fn live_terminal_run_to_frontend(run: &LiveTerminalRun) -> CodexNewTerminalRun {
     }
 }
 
-async fn build_frontend_state(
-    app: &AppHandle,
-    state: &AppState,
-) -> Result<CodexNewFrontendState, String> {
-    let store = read_store(app)?;
+fn build_workspace_security_states(
+    store: &CodexNewDesktopStore,
+    core: &CodexNewCore,
+    codex_new_data_root: &Path,
+) -> BTreeMap<String, CodexNewWorkspaceSecurityState> {
     let mut workspace_security = BTreeMap::new();
-    let core = core_for_app(app);
-    let codex_new_data_root = codex_new_root(app);
     for (workspace_id, record) in &store.sessions {
         workspace_security.insert(
             workspace_id.clone(),
@@ -1933,14 +1972,188 @@ async fn build_frontend_state(
                 workspace_id: workspace_id.clone(),
                 workspace_name: record.workspace_name.clone(),
                 enabled_at: record.enabled_at,
-                path_aliases: collect_workspace_path_aliases(
-                    &core,
-                    &codex_new_data_root,
-                    record,
-                ),
+                path_aliases: collect_workspace_path_aliases(core, codex_new_data_root, record),
             },
         );
     }
+    workspace_security
+}
+
+fn build_active_session_and_task_from_overview(
+    record: &CodexNewWorkspaceRecord,
+    overview: &codex_new_core::TaskOverview,
+    core: &CodexNewCore,
+) -> (CodexNewSession, CodexNewActiveTask) {
+    let latest_test = overview
+        .command_runs
+        .iter()
+        .filter(|run| run.kind == CommandExecutionKind::Test)
+        .max_by_key(|run| run.started_at.timestamp_millis())
+        .map(map_latest_test);
+
+    let has_passing_test = overview.command_runs.iter().any(|run| {
+        run.kind == CommandExecutionKind::Test && matches!(run.status, CommandRunStatus::Succeeded)
+    });
+
+    let active_session = CodexNewSession {
+        workspace_id: record.workspace_id.clone(),
+        workspace_name: record.workspace_name.clone(),
+        workspace_path: overview
+            .manifest
+            .workspace_root
+            .to_string_lossy()
+            .to_string(),
+        thread_id: record.thread_id.clone(),
+        enabled_at: record.enabled_at,
+        source: "backend".to_string(),
+    };
+
+    let suggested_test_commands = {
+        let settings = core
+            .read_project(&record.project_id)
+            .map(|project| project.settings)
+            .unwrap_or_else(|_| default_project_settings());
+
+        let mut suggested = settings.default_test_commands.clone();
+        suggested.extend(codex_new_core::detect_test_commands(
+            &overview.manifest.original_root,
+        ));
+        suggested.sort();
+        suggested.dedup();
+        suggested
+    };
+
+    let active_task = CodexNewActiveTask {
+        project_id: overview.task.project_id.clone(),
+        task_id: overview.task.id.clone(),
+        title: overview.task.title.clone(),
+        status: overview.task.status,
+        original_root: overview
+            .manifest
+            .original_root
+            .to_string_lossy()
+            .to_string(),
+        workspace_root: overview
+            .manifest
+            .workspace_root
+            .to_string_lossy()
+            .to_string(),
+        environment_summary: overview
+            .manifest
+            .environment_binding
+            .as_ref()
+            .map(format_environment_summary),
+        project_settings: {
+            let settings = core
+                .read_project(&record.project_id)
+                .map(|project| project.settings)
+                .unwrap_or_else(|_| default_project_settings());
+            settings
+        },
+        suggested_test_commands,
+        changed_files: overview.manifest.changed_files.clone(),
+        diff: overview.diff.clone(),
+        review: overview.review.clone(),
+        latest_summary: overview.latest_summary.clone(),
+        latest_test,
+        has_passing_test,
+    };
+
+    (active_session, active_task)
+}
+
+fn build_process_entries_from_overview(
+    overview: &codex_new_core::TaskOverview,
+) -> Vec<CodexNewProcessEntry> {
+    let mut mapped = overview
+        .recent_activity
+        .iter()
+        .filter_map(map_timeline_event)
+        .collect::<Vec<_>>();
+    mapped.sort_by_key(|entry| entry.created_at);
+    mapped
+}
+
+fn build_terminal_runs_from_overview(
+    overview: &codex_new_core::TaskOverview,
+) -> Vec<CodexNewTerminalRun> {
+    overview
+        .command_runs
+        .iter()
+        .map(|run| {
+            let status = match run.status {
+                codex_new_core::CommandRunStatus::Running => CodexNewTerminalStatus::Running,
+                codex_new_core::CommandRunStatus::Succeeded => CodexNewTerminalStatus::Succeeded,
+                codex_new_core::CommandRunStatus::Failed => CodexNewTerminalStatus::Failed,
+            };
+
+            CodexNewTerminalRun {
+                id: format!("core-{}", run.id),
+                title: run.title.clone().unwrap_or_else(|| {
+                    if run.kind == codex_new_core::CommandExecutionKind::Test {
+                        "Test run".to_string()
+                    } else {
+                        "Command run".to_string()
+                    }
+                }),
+                command: run.command.clone(),
+                cwd: run.cwd.to_string_lossy().to_string(),
+                status,
+                started_at: timestamp_ms(run.started_at),
+                completed_at: run.completed_at.map(timestamp_ms),
+                exit_code: run.exit_code,
+                stdout_excerpt: read_output_excerpt(&run.stdout_path),
+                stderr_excerpt: read_output_excerpt(&run.stderr_path),
+            }
+        })
+        .collect::<Vec<_>>()
+}
+
+async fn apply_live_overlay_to_entries(
+    state: &AppState,
+    active_workspace_id: &str,
+    record_thread_id: Option<&str>,
+    process_entries: &mut Vec<CodexNewProcessEntry>,
+    terminal_runs: &mut Vec<CodexNewTerminalRun>,
+) {
+    let live = state.codex_new_live.lock().await;
+    if let Some(workspace_live) = live.get(active_workspace_id) {
+        let include_all_threads = record_thread_id.is_none();
+
+        let filtered_process = workspace_live
+            .process_entries
+            .values()
+            .filter(|entry| {
+                include_all_threads
+                    || entry.thread_id.is_none()
+                    || entry.thread_id.as_deref() == record_thread_id
+            })
+            .map(live_process_entry_to_frontend)
+            .collect::<Vec<_>>();
+        process_entries.extend(filtered_process);
+
+        let filtered_terminal = workspace_live
+            .terminal_runs
+            .values()
+            .filter(|run| {
+                include_all_threads
+                    || run.thread_id.is_none()
+                    || run.thread_id.as_deref() == record_thread_id
+            })
+            .map(live_terminal_run_to_frontend)
+            .collect::<Vec<_>>();
+        terminal_runs.extend(filtered_terminal);
+    }
+}
+
+async fn build_frontend_state(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<CodexNewFrontendState, String> {
+    let store = read_store(app)?;
+    let core = core_for_app(app);
+    let codex_new_data_root = codex_new_root(app);
+    let workspace_security = build_workspace_security_states(&store, &core, &codex_new_data_root);
 
     let mut active_session = None;
     let mut active_task = None;
@@ -1948,140 +2161,22 @@ async fn build_frontend_state(
     let mut terminal_runs = Vec::new();
     if let Some(active_workspace_id) = store.active_workspace_id.as_deref() {
         if let Some(record) = store.sessions.get(active_workspace_id) {
-            let core = core_for_app(app);
             match core.get_task_overview(&record.project_id, &record.task_id) {
                 Ok(overview) => {
-                    active_session = Some(CodexNewSession {
-                        workspace_id: record.workspace_id.clone(),
-                        workspace_name: record.workspace_name.clone(),
-                        workspace_path: overview
-                            .manifest
-                            .workspace_root
-                            .to_string_lossy()
-                            .to_string(),
-                        thread_id: record.thread_id.clone(),
-                        enabled_at: record.enabled_at,
-                        source: "backend".to_string(),
-                    });
-                    let latest_test = overview
-                        .command_runs
-                        .iter()
-                        .filter(|run| run.kind == CommandExecutionKind::Test)
-                        .max_by_key(|run| run.started_at.timestamp_millis())
-                        .map(map_latest_test);
-                    let has_passing_test = overview.command_runs.iter().any(|run| {
-                        run.kind == CommandExecutionKind::Test
-                            && matches!(run.status, CommandRunStatus::Succeeded)
-                    });
-                    active_task = Some(CodexNewActiveTask {
-                        project_id: overview.task.project_id.clone(),
-                        task_id: overview.task.id.clone(),
-                        title: overview.task.title.clone(),
-                        status: overview.task.status,
-                        original_root: overview
-                            .manifest
-                            .original_root
-                            .to_string_lossy()
-                            .to_string(),
-                        workspace_root: overview
-                            .manifest
-                            .workspace_root
-                            .to_string_lossy()
-                            .to_string(),
-                        environment_summary: overview
-                            .manifest
-                            .environment_binding
-                            .as_ref()
-                            .map(format_environment_summary),
-                        project_settings: {
-                            let settings = core
-                                .read_project(&record.project_id)
-                                .map(|project| project.settings)
-                                .unwrap_or_else(|_| default_project_settings());
-                            settings
-                        },
-                        suggested_test_commands: {
-                            let settings = core
-                                .read_project(&record.project_id)
-                                .map(|project| project.settings)
-                                .unwrap_or_else(|_| default_project_settings());
-                            let mut suggested = settings.default_test_commands.clone();
-                            suggested.extend(codex_new_core::detect_test_commands(
-                                &overview.manifest.original_root,
-                            ));
-                            suggested.sort();
-                            suggested.dedup();
-                            suggested
-                        },
-                        changed_files: overview.manifest.changed_files.clone(),
-                        diff: overview.diff.clone(),
-                        review: overview.review.clone(),
-                        latest_summary: overview.latest_summary.clone(),
-                        latest_test,
-                        has_passing_test,
-                    });
-                    let mut mapped = overview
-                        .recent_activity
-                        .iter()
-                        .filter_map(map_timeline_event)
-                        .collect::<Vec<_>>();
-                    mapped.sort_by_key(|entry| entry.created_at);
-                    process_entries.extend(mapped);
-                    terminal_runs.extend(overview.command_runs.iter().map(|run| {
-                        CodexNewTerminalRun {
-                            id: format!("core-{}", run.id),
-                            title: run.title.clone().unwrap_or_else(|| {
-                                if run.kind == codex_new_core::CommandExecutionKind::Test {
-                                    "Test run".to_string()
-                                } else {
-                                    "Command run".to_string()
-                                }
-                            }),
-                            command: run.command.clone(),
-                            cwd: run.cwd.to_string_lossy().to_string(),
-                            status: match run.status {
-                                codex_new_core::CommandRunStatus::Running => {
-                                    CodexNewTerminalStatus::Running
-                                }
-                                codex_new_core::CommandRunStatus::Succeeded => {
-                                    CodexNewTerminalStatus::Succeeded
-                                }
-                                codex_new_core::CommandRunStatus::Failed => {
-                                    CodexNewTerminalStatus::Failed
-                                }
-                            },
-                            started_at: timestamp_ms(run.started_at),
-                            completed_at: run.completed_at.map(timestamp_ms),
-                            exit_code: run.exit_code,
-                            stdout_excerpt: read_output_excerpt(&run.stdout_path),
-                            stderr_excerpt: read_output_excerpt(&run.stderr_path),
-                        }
-                    }));
-                    let live = state.codex_new_live.lock().await;
-                    if let Some(workspace_live) = live.get(active_workspace_id) {
-                        let filtered_process = workspace_live
-                            .process_entries
-                            .values()
-                            .filter(|entry| {
-                                record.thread_id.is_none()
-                                    || entry.thread_id.is_none()
-                                    || entry.thread_id == record.thread_id
-                            })
-                            .map(live_process_entry_to_frontend)
-                            .collect::<Vec<_>>();
-                        let filtered_terminal = workspace_live
-                            .terminal_runs
-                            .values()
-                            .filter(|run| {
-                                record.thread_id.is_none()
-                                    || run.thread_id.is_none()
-                                    || run.thread_id == record.thread_id
-                            })
-                            .map(live_terminal_run_to_frontend)
-                            .collect::<Vec<_>>();
-                        process_entries.extend(filtered_process);
-                        terminal_runs.extend(filtered_terminal);
-                    }
+                    let (session, task) =
+                        build_active_session_and_task_from_overview(record, &overview, &core);
+                    active_session = Some(session);
+                    active_task = Some(task);
+                    process_entries.extend(build_process_entries_from_overview(&overview));
+                    terminal_runs.extend(build_terminal_runs_from_overview(&overview));
+                    apply_live_overlay_to_entries(
+                        state,
+                        active_workspace_id,
+                        record.thread_id.as_deref(),
+                        &mut process_entries,
+                        &mut terminal_runs,
+                    )
+                    .await;
                 }
                 Err(error) => {
                     active_session = Some(CodexNewSession {
@@ -2198,6 +2293,15 @@ fn resolve_manifest_path(
     Ok((core, record, manifest_path))
 }
 
+pub(crate) fn resolve_codex_new_manifest_path(
+    app: &AppHandle,
+    workspace_id: &str,
+) -> Option<(CodexNewCore, PathBuf)> {
+    resolve_manifest_path(app, workspace_id)
+        .ok()
+        .map(|(core, _, manifest_path)| (core, manifest_path))
+}
+
 fn normalized_string(value: Option<&str>) -> Option<String> {
     value
         .map(str::trim)
@@ -2250,14 +2354,7 @@ pub(crate) async fn security_exec_approval_isolated(
     workspace_id: &str,
     thread_id: Option<&str>,
 ) -> Result<bool, String> {
-    if !workspace_security_enabled(app, workspace_id).await? {
-        return Ok(false);
-    }
-    let Some(thread_id) = thread_id.filter(|id| !id.trim().is_empty()) else {
-        return Ok(false);
-    };
-    let store = read_store(app)?;
-    Ok(thread_security_armed(&store, thread_id))
+    codex_new_security::security_exec_approval_isolated_impl(app, workspace_id, thread_id).await
 }
 
 /// Security mode must not run with full-access; shell would write directly into the project tree.
@@ -2266,10 +2363,7 @@ pub(crate) async fn turn_access_mode_for_workspace(
     workspace_id: &str,
     requested: Option<String>,
 ) -> Result<String, String> {
-    if workspace_security_enabled(app, workspace_id).await? {
-        return Ok("current".to_string());
-    }
-    Ok(requested.unwrap_or_else(|| "current".to_string()))
+    codex_new_security::turn_access_mode_for_workspace_impl(app, workspace_id, requested).await
 }
 
 /// Effective cwd + writable roots for Codex turns while Security is armed.
@@ -2279,11 +2373,7 @@ pub(crate) async fn resolve_turn_workspace_path(
     workspace_id: &str,
     thread_id: Option<&str>,
 ) -> Result<String, String> {
-    if let Some(path) = prepare_workspace_for_thread(app, state, workspace_id, thread_id).await? {
-        return Ok(path);
-    }
-    let (workspace, _) = resolve_workspace_context(state, workspace_id).await?;
-    Ok(workspace.path)
+    codex_new_security::resolve_turn_workspace_path_impl(app, state, workspace_id, thread_id).await
 }
 
 pub(crate) async fn prepare_workspace_for_thread(
@@ -2292,20 +2382,7 @@ pub(crate) async fn prepare_workspace_for_thread(
     workspace_id: &str,
     thread_id: Option<&str>,
 ) -> Result<Option<String>, String> {
-    if !workspace_security_enabled(app, workspace_id).await? {
-        return Ok(None);
-    }
-    let Some(thread_id) = thread_id.filter(|id| !id.trim().is_empty()) else {
-        return Ok(None);
-    };
-    let store = read_store(app)?;
-    if !thread_security_armed(&store, thread_id) {
-        return Ok(None);
-    }
-    let prepared =
-        ensure_security_context(app, state, workspace_id, Some(thread_id), true, true).await?;
-    apply_prepared_security_runtime(app, state, workspace_id, &prepared).await?;
-    Ok(Some(prepared.workspace_root.to_string_lossy().to_string()))
+    codex_new_security::prepare_workspace_for_thread_impl(app, state, workspace_id, thread_id).await
 }
 
 pub(crate) async fn bind_workspace_thread(
@@ -2314,18 +2391,7 @@ pub(crate) async fn bind_workspace_thread(
     workspace_id: &str,
     thread_id: &str,
 ) -> Result<(), String> {
-    if !workspace_security_enabled(app, workspace_id).await? {
-        return Ok(());
-    }
-    let store = read_store(app)?;
-    if !thread_security_armed(&store, thread_id) {
-        return Ok(());
-    }
-    let prepared =
-        ensure_security_context(app, state, workspace_id, Some(thread_id), true, true).await?;
-    let isolated = prepared.workspace_root.to_string_lossy().to_string();
-    register_workspace_thread(app, workspace_id, thread_id, Some(isolated.as_str())).await?;
-    Ok(())
+    codex_new_security::bind_workspace_thread_impl(app, state, workspace_id, thread_id).await
 }
 
 #[tauri::command]
@@ -2334,20 +2400,7 @@ pub(crate) async fn codex_new_sync_viewing_context(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    let mut store = read_store(&app)?;
-    store.active_workspace_id = Some(input.workspace_id.clone());
-    if let Some(thread_id) = input
-        .thread_id
-        .as_deref()
-        .filter(|id| !id.trim().is_empty())
-    {
-        if let Some(record) = store.sessions.get_mut(&input.workspace_id) {
-            record.thread_id = Some(thread_id.to_string());
-        }
-    }
-    apply_session_input_metadata(&mut store, &input);
-    write_store(&app, &store)?;
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_sync_viewing_context_impl(input, state, app).await
 }
 
 #[tauri::command]
@@ -2355,7 +2408,7 @@ pub(crate) async fn codex_new_get_state(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_get_state_impl(state, app).await
 }
 
 #[tauri::command]
@@ -2364,20 +2417,7 @@ pub(crate) async fn codex_new_enable_security(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    let prepared = ensure_security_context(
-        &app,
-        &state,
-        &input.workspace_id,
-        input.thread_id.as_deref(),
-        false,
-        true,
-    )
-    .await?;
-    apply_prepared_security_runtime(&app, &state, &input.workspace_id, &prepared).await?;
-    let mut store = read_store(&app)?;
-    apply_session_input_metadata(&mut store, &input);
-    write_store(&app, &store)?;
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_enable_security_impl(input, state, app).await
 }
 
 #[tauri::command]
@@ -2387,27 +2427,7 @@ pub(crate) async fn codex_new_sync_thread_titles(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    let _ = state;
-    let mut store = read_store(&app)?;
-    for entry in entries {
-        let Some(registry) = store.thread_registry.get_mut(&entry.thread_id) else {
-            continue;
-        };
-        if registry.workspace_id != workspace_id {
-            continue;
-        }
-        if let Some(title) = entry
-            .thread_title
-            .as_deref()
-            .map(str::trim)
-            .filter(|title| !title.is_empty())
-        {
-            registry.thread_title = Some(title.to_string());
-            registry.updated_at = now_ms();
-        }
-    }
-    write_store(&app, &store)?;
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_sync_thread_titles_impl(workspace_id, entries, state, app).await
 }
 
 #[tauri::command]
@@ -2416,27 +2436,7 @@ pub(crate) async fn codex_new_focus_session(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    let mut store = read_store(&app)?;
-    store.active_workspace_id = Some(input.workspace_id.clone());
-    if let Some(thread_id) = input.thread_id.as_deref().filter(|id| !id.trim().is_empty()) {
-        if thread_security_armed(&store, thread_id) {
-            let prepared = ensure_security_context(
-                &app,
-                &state,
-                &input.workspace_id,
-                Some(thread_id),
-                false,
-                true,
-            )
-            .await?;
-            apply_prepared_security_runtime(&app, &state, &input.workspace_id, &prepared).await?;
-        } else if let Some(record) = store.sessions.get_mut(&input.workspace_id) {
-            record.thread_id = Some(thread_id.to_string());
-        }
-    }
-    apply_session_input_metadata(&mut store, &input);
-    write_store(&app, &store)?;
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_focus_session_impl(input, state, app).await
 }
 
 #[tauri::command]
@@ -2445,36 +2445,7 @@ pub(crate) async fn codex_new_disable_security(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    let (workspace, parent_workspace) = resolve_workspace_context(&state, &workspace_id).await?;
-    let mut store = read_store(&app)?;
-    let original_path = store
-        .sessions
-        .get(&workspace_id)
-        .map(|record| record.original_workspace_path.clone())
-        .unwrap_or_else(|| workspace.path.clone());
-    store.sessions.remove(&workspace_id);
-    if store.active_workspace_id.as_deref() == Some(workspace_id.as_str()) {
-        store.active_workspace_id = None;
-    }
-    write_store(&app, &store)?;
-    state.codex_new_live.lock().await.remove(&workspace_id);
-    let should_restore_runtime = {
-        let sessions = state.sessions.lock().await;
-        sessions.contains_key(&workspace_id)
-    };
-    if should_restore_runtime
-        && !workspace_session_matches_path(&state, &workspace_id, Path::new(&original_path)).await
-    {
-        replace_workspace_session(
-            &app,
-            &state,
-            workspace,
-            parent_workspace,
-            Path::new(&original_path),
-        )
-        .await?;
-    }
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_disable_security_impl(workspace_id, state, app).await
 }
 
 #[tauri::command]
@@ -2483,8 +2454,7 @@ pub(crate) async fn codex_new_refresh_changes(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    refresh_workspace_task(&app, &workspace_id).await?;
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_refresh_changes_impl(workspace_id, state, app).await
 }
 
 #[tauri::command]
@@ -2493,17 +2463,7 @@ pub(crate) async fn codex_new_run_review(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    let app_for_task = app.clone();
-    let workspace_id = input.workspace_id;
-    tokio::task::spawn_blocking(move || {
-        let (core, record, _) = resolve_manifest_path(&app_for_task, &workspace_id)?;
-        core.review_task(&record.project_id, &record.task_id)
-            .map_err(|err| err.to_string())?;
-        Ok::<(), String>(())
-    })
-    .await
-    .map_err(|err| err.to_string())??;
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_run_review_impl(input, state, app).await
 }
 
 #[tauri::command]
@@ -2512,69 +2472,7 @@ pub(crate) async fn codex_new_merge_changes(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    let app_for_task = app.clone();
-    tokio::task::spawn_blocking(move || {
-        let (core, _, manifest_path) = resolve_manifest_path(&app_for_task, &input.workspace_id)?;
-        let manifest =
-            TaskManifest::read_from_path(&manifest_path).map_err(|err| err.to_string())?;
-        let available_paths = manifest
-            .changed_files
-            .iter()
-            .filter(|changed| !changed.accepted)
-            .map(|changed| changed.path.clone())
-            .collect::<Vec<_>>();
-        let requested_hunks = input.hunks.unwrap_or_default();
-        if !requested_hunks.is_empty() {
-            let selections = requested_hunks
-                .into_iter()
-                .filter(|selection| {
-                    available_paths
-                        .iter()
-                        .any(|candidate| candidate == &selection.path)
-                })
-                .map(|selection| HunkSelection {
-                    path: selection.path,
-                    hunk_index: selection.hunk_index,
-                })
-                .collect::<Vec<_>>();
-            if selections.is_empty() {
-                return Err("No unmerged hunks selected.".to_string());
-            }
-            return core
-                .merge(
-                    &manifest_path,
-                    &MergeRequest {
-                        selection: MergeSelection::Hunks(selections),
-                    },
-                )
-                .map_err(|err| err.to_string())
-                .map(|_| ());
-        }
-
-        let requested_paths = input.paths.unwrap_or_default();
-        let selected_paths = if requested_paths.is_empty() {
-            available_paths
-        } else {
-            requested_paths
-                .into_iter()
-                .filter(|path| available_paths.iter().any(|candidate| candidate == path))
-                .collect::<Vec<_>>()
-        };
-        if selected_paths.is_empty() {
-            return Err("No unmerged files selected.".to_string());
-        }
-        core.merge(
-            &manifest_path,
-            &MergeRequest {
-                selection: MergeSelection::Files(selected_paths),
-            },
-        )
-        .map_err(|err| err.to_string())
-        .map(|_| ())
-    })
-    .await
-    .map_err(|err| err.to_string())??;
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_merge_changes_impl(input, state, app).await
 }
 
 #[tauri::command]
@@ -2583,64 +2481,7 @@ pub(crate) async fn codex_new_rollback_task(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    let app_for_task = app.clone();
-    tokio::task::spawn_blocking(move || {
-        let (core, _, manifest_path) = resolve_manifest_path(&app_for_task, &input.workspace_id)?;
-        let manifest =
-            TaskManifest::read_from_path(&manifest_path).map_err(|err| err.to_string())?;
-        let merged_paths = manifest
-            .changed_files
-            .iter()
-            .filter(|changed| changed.accepted)
-            .map(|changed| changed.path.clone())
-            .collect::<Vec<_>>();
-        if merged_paths.is_empty() {
-            return Err("No merged files are available for rollback.".to_string());
-        }
-
-        let selection = if let Some(hunks) = input.hunks {
-            let selections = hunks
-                .into_iter()
-                .filter(|selection| {
-                    merged_paths
-                        .iter()
-                        .any(|candidate| candidate == &selection.path)
-                })
-                .map(|selection| HunkSelection {
-                    path: selection.path,
-                    hunk_index: selection.hunk_index,
-                })
-                .collect::<Vec<_>>();
-            if selections.is_empty() {
-                return Err("No merged hunks selected for rollback.".to_string());
-            }
-            RollbackSelection::Hunks(selections)
-        } else {
-            let requested_paths = input.paths.unwrap_or_default();
-            let selected_paths = if requested_paths.is_empty() {
-                merged_paths
-            } else {
-                requested_paths
-                    .into_iter()
-                    .filter(|path| merged_paths.iter().any(|candidate| candidate == path))
-                    .collect::<Vec<_>>()
-            };
-            if selected_paths.is_empty() {
-                return Err("No merged files selected for rollback.".to_string());
-            }
-            RollbackSelection::Files(selected_paths)
-        };
-
-        core.rollback(
-            &manifest_path,
-            &RollbackRequest { selection },
-        )
-        .map_err(|err| err.to_string())?;
-        Ok::<(), String>(())
-    })
-    .await
-    .map_err(|err| err.to_string())??;
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_rollback_task_impl(input, state, app).await
 }
 
 #[tauri::command]
@@ -2649,35 +2490,7 @@ pub(crate) async fn codex_new_write_summary(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    let app_for_task = app.clone();
-    tokio::task::spawn_blocking(move || {
-        let (core, record, manifest_path) =
-            resolve_manifest_path(&app_for_task, &input.workspace_id)?;
-        let overview = core
-            .get_task_overview(&record.project_id, &record.task_id)
-            .map_err(|err| err.to_string())?;
-        let latest_test = overview
-            .command_runs
-            .iter()
-            .filter(|run| run.kind == CommandExecutionKind::Test)
-            .max_by_key(|run| run.started_at.timestamp_millis())
-            .map(map_latest_test);
-        let goal =
-            normalized_string(input.goal.as_deref()).unwrap_or_else(|| overview.task.title.clone());
-        let result = normalized_string(input.result.as_deref()).unwrap_or_else(|| {
-            default_summary_result_for_task(
-                &overview.diff,
-                overview.review.as_ref(),
-                latest_test.as_ref(),
-            )
-        });
-        core.write_task_summary(&manifest_path, &goal, &result)
-            .map_err(|err| err.to_string())?;
-        Ok::<(), String>(())
-    })
-    .await
-    .map_err(|err| err.to_string())??;
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_write_summary_impl(input, state, app).await
 }
 
 #[tauri::command]
@@ -2686,28 +2499,7 @@ pub(crate) async fn codex_new_run_test(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    let app_for_task = app.clone();
-    tokio::task::spawn_blocking(move || {
-        let command = normalized_string(Some(&input.command))
-            .ok_or_else(|| "Enter a test command before running tests.".to_string())?;
-        let (core, _, manifest_path) = resolve_manifest_path(&app_for_task, &input.workspace_id)?;
-        core.run_test_command_request(
-            &manifest_path,
-            TestExecutionRequest {
-                command,
-                use_environment_binding: input.use_environment_binding.unwrap_or(true),
-                env_overrides: BTreeMap::new(),
-                profile_id: None,
-                retry_of: normalized_string(input.retry_of.as_deref()),
-                title: normalized_string(input.title.as_deref()).or(Some("Test run".to_string())),
-            },
-        )
-        .map_err(|err| err.to_string())?;
-        Ok::<(), String>(())
-    })
-    .await
-    .map_err(|err| err.to_string())??;
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_run_test_impl(input, state, app).await
 }
 
 #[tauri::command]
@@ -2715,8 +2507,7 @@ pub(crate) async fn codex_new_read_file_preview(
     input: CodexNewFilePreviewInput,
     app: AppHandle,
 ) -> Result<CodexNewFilePreview, String> {
-    let roots = resolve_session_preview_roots(&app, &input.workspace_id)?;
-    Ok(read_file_preview(&roots, &input.path))
+    codex_new_commands::codex_new_read_file_preview_impl(input, app).await
 }
 
 #[tauri::command]
@@ -2724,14 +2515,7 @@ pub(crate) async fn codex_new_list_traceback(
     input: CodexNewWorkspaceActionInput,
     app: AppHandle,
 ) -> Result<Vec<TracebackEntry>, String> {
-    let app_for_task = app.clone();
-    tokio::task::spawn_blocking(move || {
-        let (core, record, _) = resolve_manifest_path(&app_for_task, &input.workspace_id)?;
-        core.list_traceback(&record.project_id, &record.task_id)
-            .map_err(|err| err.to_string())
-    })
-    .await
-    .map_err(|err| err.to_string())?
+    codex_new_commands::codex_new_list_traceback_impl(input, app).await
 }
 
 #[tauri::command]
@@ -2740,32 +2524,7 @@ pub(crate) async fn codex_new_restore_traceback(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<CodexNewFrontendState, String> {
-    let target = match input.target.as_str() {
-        "project" => TracebackRestoreTarget::Project,
-        "workspace" => TracebackRestoreTarget::Workspace,
-        _ => {
-            return Err("Traceback restore target must be \"project\" or \"workspace\".".to_string());
-        }
-    };
-    let app_for_task = app.clone();
-    tokio::task::spawn_blocking(move || {
-        let (core, record, manifest_path) =
-            resolve_manifest_path(&app_for_task, &input.workspace_id)?;
-        let outcome = core
-            .restore_traceback(
-                &record.project_id,
-                &record.task_id,
-                &input.path,
-                target,
-            )
-            .map_err(|err| err.to_string())?;
-        core.refresh_changes(&manifest_path)
-            .map_err(|err| err.to_string())?;
-        Ok::<TracebackRestoreOutcome, String>(outcome)
-    })
-    .await
-    .map_err(|err| err.to_string())??;
-    build_frontend_state(&app, &state).await
+    codex_new_commands::codex_new_restore_traceback_impl(input, state, app).await
 }
 
 #[tauri::command]
@@ -2773,14 +2532,7 @@ pub(crate) async fn codex_new_list_memory_candidates(
     input: CodexNewWorkspaceActionInput,
     app: AppHandle,
 ) -> Result<Vec<CandidateMemoryRecord>, String> {
-    let app_for_task = app.clone();
-    tokio::task::spawn_blocking(move || {
-        let (core, record, _) = resolve_manifest_path(&app_for_task, &input.workspace_id)?;
-        core.list_memory_candidates(&record.project_id, &record.task_id)
-            .map_err(|err| err.to_string())
-    })
-    .await
-    .map_err(|err| err.to_string())?
+    codex_new_commands::codex_new_list_memory_candidates_impl(input, app).await
 }
 
 #[tauri::command]
@@ -2788,21 +2540,7 @@ pub(crate) async fn codex_new_apply_memory_candidates(
     input: CodexNewMemoryApplyInput,
     app: AppHandle,
 ) -> Result<MemoryApplyOutcome, String> {
-    let app_for_task = app.clone();
-    tokio::task::spawn_blocking(move || {
-        let (core, record, _) = resolve_manifest_path(&app_for_task, &input.workspace_id)?;
-        if input.candidate_ids.is_empty() {
-            return Err("Select at least one memory candidate.".to_string());
-        }
-        core.apply_memory_candidates(
-            &record.project_id,
-            &record.task_id,
-            &input.candidate_ids,
-        )
-        .map_err(|err| err.to_string())
-    })
-    .await
-    .map_err(|err| err.to_string())?
+    codex_new_commands::codex_new_apply_memory_candidates_impl(input, app).await
 }
 
 #[cfg(test)]

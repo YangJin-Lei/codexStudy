@@ -11,7 +11,7 @@ import {
 import { requestCodexNewFocusThread } from "../services/navigation";
 import { resolveThreadTitle } from "../utils/threadLabels";
 import { requestCodexNewTerminalDockOpen } from "../services/uiPreferences";
-import { ensureCodexNewWorkbenchWindows, openCodexNewWindow } from "../services/windows";
+import { openCodexNewWindow } from "../services/windows";
 import { useCodexNewState } from "./useCodexNewState";
 
 type UseCodexNewControllerArgs = {
@@ -129,13 +129,6 @@ export function useCodexNewController({
     securityToggleDisabled,
   ]);
 
-  const openWorkbench = useCallback(async () => {
-    if (activeWorkspace && isSecurityEnabled) {
-      await focusCodexNewSession(activeWorkspace, activeThreadId, activeThreadTitle);
-    }
-    await ensureCodexNewWorkbenchWindows();
-  }, [activeThreadId, activeThreadTitle, activeWorkspace, isSecurityEnabled]);
-
   const openProcessWindow = useCallback(async () => {
     if (activeWorkspace) {
       await syncCodexNewViewingContext(activeWorkspace, activeThreadId, activeThreadTitle);
@@ -147,15 +140,9 @@ export function useCodexNewController({
   }, [activeThreadId, activeThreadTitle, activeWorkspace, isSecurityEnabled]);
 
   const openTerminalWindow = useCallback(async () => {
-    if (activeWorkspace) {
-      await syncCodexNewViewingContext(activeWorkspace, activeThreadId, activeThreadTitle);
-      if (isSecurityEnabled) {
-        await focusCodexNewSession(activeWorkspace, activeThreadId, activeThreadTitle);
-      }
-    }
     requestCodexNewTerminalDockOpen();
-    await openCodexNewWindow("codex-new-process");
-  }, [activeThreadId, activeThreadTitle, activeWorkspace, isSecurityEnabled]);
+    await openProcessWindow();
+  }, [openProcessWindow]);
 
   const activeWorkspaceSecurityState = activeWorkspace
     ? state.workspaceSecurity[activeWorkspace.id] ?? null
@@ -171,7 +158,7 @@ export function useCodexNewController({
     activeWorkspaceSecurityState,
     activeThreadRegistryEntry,
     handleToggleSecurity,
-    openWorkbench,
+    openWorkbench: openProcessWindow,
     openProcessWindow,
     openTerminalWindow,
     securityToggleDisabled,

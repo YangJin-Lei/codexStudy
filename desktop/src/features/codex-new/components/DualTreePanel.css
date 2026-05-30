@@ -1,0 +1,342 @@
+.dual-tree-panel {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--wb-border-soft, var(--border));
+  background: var(--wb-panel-bg, var(--background-secondary));
+  overflow: hidden;
+}
+
+.dual-tree-panel .wb-panel-header {
+  flex-shrink: 0;
+}
+
+.conflict-stats-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 0.35rem;
+  border: 1px solid color-mix(in srgb, #f59e0b 45%, var(--border));
+  background: color-mix(in srgb, #f59e0b 10%, transparent);
+  font-size: 0.72rem;
+  color: var(--foreground);
+}
+
+.conflict-stats-strip-action {
+  margin-left: auto;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--border);
+  background: var(--background);
+  cursor: pointer;
+}
+
+.conflict-stats-strip-action:hover {
+  background: var(--background-tertiary);
+}
+
+.explorer-load-error-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem;
+  padding: 0.6rem 0.65rem;
+  border-radius: 0.4rem;
+  border: 1px solid color-mix(in srgb, #ef4444 45%, var(--border));
+  background: color-mix(in srgb, #ef4444 10%, transparent);
+  font-size: 0.74rem;
+}
+
+.explorer-load-error-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.explorer-load-error-copy span {
+  color: var(--foreground-muted);
+  word-break: break-word;
+}
+
+.explorer-load-error-retry {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  padding: 0.28rem 0.5rem;
+  border-radius: 0.3rem;
+  border: 1px solid var(--border);
+  background: var(--background);
+  cursor: pointer;
+}
+
+.explorer-load-error-retry:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.explorer-loading-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--wb-text-muted, var(--foreground-muted));
+}
+
+.explorer-loading-indicator.is-background {
+  margin-top: 0.45rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--wb-accent, var(--primary)) 8%, transparent);
+}
+
+.explorer-loading-indicator.is-blocking {
+  justify-content: center;
+  padding: 1rem 0.5rem;
+}
+
+.dual-tree-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--wb-border-soft, var(--border));
+  border-radius: 0.35rem;
+  background: var(--wb-shell-bg, var(--background));
+}
+
+.dual-tree-search svg {
+  color: var(--foreground-muted);
+  flex-shrink: 0;
+}
+
+.dual-tree-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.dual-tree-search-input::placeholder {
+  color: var(--foreground-muted);
+}
+
+.dual-tree-filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-button {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--background);
+  color: var(--foreground-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-button:hover {
+  background: var(--background-tertiary);
+  border-color: var(--border-hover);
+}
+
+.filter-button.active {
+  background: var(--primary-background);
+  color: var(--primary-foreground);
+  border-color: var(--primary-border);
+}
+
+.dual-tree-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.dual-tree-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.dual-tree-section {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--background);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 140px;
+}
+
+.dual-tree-section-header {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background-secondary) 93%, transparent);
+}
+
+.dual-tree-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.dual-tree-section-subtitle {
+  margin-top: 0.2rem;
+  font-size: 0.6875rem;
+  color: var(--foreground-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dual-tree-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 2rem;
+  text-align: center;
+}
+
+.dual-tree-empty p {
+  color: var(--foreground-muted);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.file-tree {
+  padding: 0.5rem 0;
+}
+
+.file-tree-virtual-host {
+  flex: 1;
+  min-height: 0;
+  max-height: 42vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.file-tree-virtual {
+  position: relative;
+  width: 100%;
+}
+
+.file-tree-virtual-row {
+  height: var(--dual-tree-row-height, 28px);
+}
+
+.dual-tree-section-empty {
+  min-height: 4rem;
+  padding: 1rem;
+}
+
+.dual-tree-load-more {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  color: var(--foreground-muted);
+  font-size: 0.75rem;
+}
+
+.dual-tree-load-more:hover {
+  background: var(--background-tertiary);
+  color: var(--foreground);
+}
+
+.file-tree-node {
+  user-select: none;
+}
+
+.file-tree-node-content {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.28rem 0.65rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-radius: 0.3rem;
+  margin: 0 0.25rem;
+}
+
+.file-tree-node-content:hover {
+  background: var(--background-tertiary);
+}
+
+.file-tree-chevron {
+  display: flex;
+  align-items: center;
+  color: var(--foreground-muted);
+  flex-shrink: 0;
+}
+
+.file-tree-icon {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.file-tree-name {
+  font-size: 0.8125rem;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-tree-children {
+  /* 子节点容器 */
+}
+
+.dual-tree-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: ew-resize;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.dual-tree-resizer:hover {
+  background: var(--primary-background);
+}
+
+/* 滚动条样式 */
+.dual-tree-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dual-tree-content::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+.dual-tree-content::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.dual-tree-content::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}

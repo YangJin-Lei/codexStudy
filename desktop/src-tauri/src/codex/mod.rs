@@ -582,24 +582,19 @@ pub(crate) async fn send_user_message(
         Some(thread_id.as_str()),
     )
     .await?;
-    let access_mode = crate::codex_new::turn_access_mode_for_workspace(
+    let access_mode =
+        crate::codex_new::turn_access_mode_for_workspace(&app, &workspace_id, access_mode).await?;
+    let approval_policy_override = if crate::codex_new::security_exec_approval_isolated(
         &app,
         &workspace_id,
-        access_mode,
+        Some(thread_id.as_str()),
     )
-    .await?;
-    let approval_policy_override =
-        if crate::codex_new::security_exec_approval_isolated(
-            &app,
-            &workspace_id,
-            Some(thread_id.as_str()),
-        )
-        .await?
-        {
-            Some("never".to_string())
-        } else {
-            None
-        };
+    .await?
+    {
+        Some("never".to_string())
+    } else {
+        None
+    };
     ensure_live_workspace_session(&workspace_id, &state, &app).await?;
     codex_core::send_user_message_core(
         &state.sessions,

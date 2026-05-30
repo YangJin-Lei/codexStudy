@@ -102,9 +102,9 @@ pub(crate) async fn ensure_installed_when_enabled() -> Result<(), String> {
     if !read_enabled_from_config(&codex_home)? {
         return Ok(());
     }
-    if install::is_installed(&codex_home) && install::runtime_path_ready(
-        &install::resolve_installed_runtime_path(&codex_home)?,
-    ) {
+    if install::is_installed(&codex_home)
+        && install::runtime_path_ready(&install::resolve_installed_runtime_path(&codex_home)?)
+    {
         return Ok(());
     }
     if !bundle::bundled_resources_available() {

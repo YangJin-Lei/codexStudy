@@ -39,10 +39,9 @@ pub(crate) fn read_installed_version(codex_home: &Path) -> Option<String> {
 }
 
 pub(crate) fn install_from_bundle(codex_home: &Path) -> Result<(), String> {
-    let bundled_root =
-        bundle::resolve_bundled_resources_root().ok_or_else(|| {
-            "Bundled Computer Use resources were not found in this CodexStudy build.".to_string()
-        })?;
+    let bundled_root = bundle::resolve_bundled_resources_root().ok_or_else(|| {
+        "Bundled Computer Use resources were not found in this CodexStudy build.".to_string()
+    })?;
     let bundled_marketplace = bundled_root.join("marketplace");
     if !bundled_marketplace.join("marketplace.json").is_file() {
         return Err(format!(
@@ -90,7 +89,9 @@ pub(crate) fn resolve_installed_runtime_path(codex_home: &Path) -> Result<PathBu
     #[cfg(target_os = "macos")]
     {
         for bundle_name in ["Open Computer Use.app", "Open Computer Use (Dev).app"] {
-            let candidate = plugin_root.join(bundle_name).join("Contents/MacOS/OpenComputerUse");
+            let candidate = plugin_root
+                .join(bundle_name)
+                .join("Contents/MacOS/OpenComputerUse");
             if candidate.is_file() {
                 return Ok(candidate);
             }

@@ -1,4 +1,6 @@
 pub(crate) mod account;
+pub(crate) mod chat_agent_rpc;
+pub(crate) mod chat_agent_tool_runner;
 pub(crate) mod agents_config_core;
 pub(crate) mod codex_aux_core;
 pub(crate) mod codex_core;

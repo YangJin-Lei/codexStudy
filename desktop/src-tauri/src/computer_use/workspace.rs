@@ -5,9 +5,8 @@ const AGENTS_MD_MARKER: &str = "<!-- codexstudy-computer-use-agents v1 -->";
 
 pub(crate) fn prepare_workspace_dir(codex_home: &Path) -> Result<PathBuf, String> {
     let path = codex_home.join("computer-use");
-    fs::create_dir_all(&path).map_err(|err| {
-        format!("Failed to create Computer Use workspace directory: {err}")
-    })?;
+    fs::create_dir_all(&path)
+        .map_err(|err| format!("Failed to create Computer Use workspace directory: {err}"))?;
     write_workspace_agents_md(&path)?;
     Ok(path)
 }

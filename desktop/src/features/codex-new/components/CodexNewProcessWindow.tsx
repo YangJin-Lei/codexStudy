@@ -2,18 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTauriEvent } from "@/features/app/hooks/useTauriEvent";
 import { subscribeCodexNewFocusThread } from "@/services/events";
 import type { CodexNewFocusThreadPayload } from "@/types";
-import AlertTriangle from "lucide-react/dist/esm/icons/alert-triangle";
-import CheckCheck from "lucide-react/dist/esm/icons/check-check";
-import ChevronRight from "lucide-react/dist/esm/icons/chevron-right";
-import ClipboardList from "lucide-react/dist/esm/icons/clipboard-list";
-import FileText from "lucide-react/dist/esm/icons/file-text";
-import History from "lucide-react/dist/esm/icons/history";
-import Play from "lucide-react/dist/esm/icons/play";
-import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw";
-import RotateCcw from "lucide-react/dist/esm/icons/rotate-ccw";
 import Shield from "lucide-react/dist/esm/icons/shield";
-import Sparkles from "lucide-react/dist/esm/icons/sparkles";
-import Workflow from "lucide-react/dist/esm/icons/workflow";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
   applyCodexNewMemoryCandidatesBackend,
@@ -51,6 +40,14 @@ import {
 } from "./CodexNewProcessSessionNav";
 import { requestCodexNewFocusThread } from "../services/navigation";
 import { CodexNewTerminalDock } from "./CodexNewTerminalDock";
+import { CodexNewDirectoryHierarchy } from "./CodexNewDirectoryHierarchy";
+import { CodexNewDataPathsPanel } from "./CodexNewDataPathsPanel";
+import { bucketChangedFiles } from "../utils/taskPhases";
+import { CodexNewReviewTab } from "./CodexNewReviewTab";
+import { CodexNewChangesTab } from "./CodexNewChangesTab";
+import { CodexNewSummaryTab } from "./CodexNewSummaryTab";
+import { CodexNewTimelineTab } from "./CodexNewTimelineTab";
+import { CODEX_NEW_PROCESS_TAB_EVENT } from "../services/uiEvents";
 
 type CodexNewProcessTab = "timeline" | "changes" | "review" | "summary";
 
@@ -274,6 +271,9 @@ export function CodexNewProcessWindow({
   const [terminalDockOpen, setTerminalDockOpen] = useState(initialTerminalDockOpen);
   const activeSession = state.activeSession;
   const activeTask = state.activeTask;
+  const activeThreadRegistryEntry = activeSession?.threadId
+    ? state.threadRegistry[activeSession.threadId] ?? null
+    : null;
   const workspaceSessions = useMemo(() => {
     if (!activeSession?.workspaceId) {
       return [];
@@ -287,6 +287,17 @@ export function CodexNewProcessWindow({
       setActiveTab(payload.processTab);
     }
   });
+
+  useEffect(() => {
+    const onProcessTab = (event: Event) => {
+      const tab = (event as CustomEvent<{ tab?: CodexNewProcessTab }>).detail?.tab;
+      if (tab) {
+        setActiveTab(tab);
+      }
+    };
+    window.addEventListener(CODEX_NEW_PROCESS_TAB_EVENT, onProcessTab);
+    return () => window.removeEventListener(CODEX_NEW_PROCESS_TAB_EVENT, onProcessTab);
+  }, []);
 
   const handleSelectProcessThread = useCallback(
     async (threadId: string, action: CodexNewSessionSelectAction = "timeline") => {
@@ -311,7 +322,7 @@ export function CodexNewProcessWindow({
     [state.threadRegistry],
   );
   const [expandedFiles, setExpandedFiles] = useState<Record<string, boolean>>({});
-  const [expandedDiffs, setExpandedDiffs] = useState<Record<string, boolean>>({});
+  const [, setExpandedDiffs] = useState<Record<string, boolean>>({});
   const [previewCache, setPreviewCache] = useState<Record<string, PreviewCacheEntry>>({});
   const [selectedMergePaths, setSelectedMergePaths] = useState<string[]>([]);
   const [selectedMergeHunks, setSelectedMergeHunks] = useState<CodexNewHunkSelection[]>([]);
@@ -364,6 +375,13 @@ export function CodexNewProcessWindow({
     }
   }, [activeTask, draftTaskId, isChinese]);
 
+  const changeBuckets = useMemo(
+    () =>
+      activeTask
+        ? bucketChangedFiles(activeTask.changedFiles)
+        : { pendingMerge: [], merged: [] },
+    [activeTask],
+  );
   const mergeablePaths = useMemo(() => mergeablePathsForTask(activeTask), [activeTask]);
   const rollbackablePaths = useMemo(() => rollbackablePathsForTask(activeTask), [activeTask]);
   const mergeableSignature = mergeablePaths.join("\n");
@@ -419,12 +437,6 @@ export function CodexNewProcessWindow({
     };
   }, [activeSession?.workspaceId, activeTask?.taskId, state.lastUpdatedAt]);
 
-  const diffFilesByPath = useMemo(
-    () => new Map((activeTask?.diff.files ?? []).map((file) => [file.path, file])),
-    [activeTask?.diff.files],
-  );
-
-  const acceptedCount = activeTask?.changedFiles.filter((file) => file.accepted).length ?? 0;
   const reviewRequired = activeTask?.projectSettings.requireReview ?? false;
   const testsRequired = activeTask?.projectSettings.requireTests ?? false;
   const reviewMissing = reviewRequired && !activeTask?.review;
@@ -542,20 +554,18 @@ export function CodexNewProcessWindow({
     setSelectedRollbackPaths((current) => current.filter((entry) => entry !== path));
   }, []);
 
-  const isHunkSelected = useCallback(
-    (path: string, hunkIndex: number) =>
-      selectedMergeHunks.some(
-        (entry) => entry.path === path && entry.hunkIndex === hunkIndex,
-      ),
-    [selectedMergeHunks],
-  );
-
   const runAction = useCallback(
-    async (action: PendingAction, work: () => Promise<unknown>, successMessage: string) => {
+    async (
+      action: PendingAction,
+      work: () => Promise<unknown>,
+      successMessage: string,
+      onSuccess?: () => void,
+    ) => {
       setPendingAction(action);
       setFeedback(null);
       try {
         await work();
+        onSuccess?.();
         setFeedback({ tone: "info", message: successMessage });
       } catch (error) {
         setFeedback({
@@ -613,11 +623,15 @@ export function CodexNewProcessWindow({
         ),
       selectedHunkCount > 0
         ? isChinese
-          ? `已合并 ${selectedHunkCount} 个 hunk。`
-          : `Merged ${selectedHunkCount} hunk(s).`
+          ? `已合并 ${selectedHunkCount} 个代码段，已移至「已合并」阶段。`
+          : `Merged ${selectedHunkCount} block(s). They now appear under Merged.`
         : isChinese
-          ? `已合并 ${selectedFileCount} 个文件。`
-          : `Merged ${selectedFileCount} file(s).`,
+          ? `已合并 ${selectedFileCount} 个文件，已移至「已合并」阶段。`
+          : `Merged ${selectedFileCount} file(s). They now appear under Merged.`,
+      () => {
+        setSelectedMergePaths([]);
+        setSelectedMergeHunks([]);
+      },
     );
   }, [
     activeSession,
@@ -719,11 +733,15 @@ export function CodexNewProcessWindow({
         ),
       selectedRollbackHunkCount > 0
         ? isChinese
-          ? `已回滚 ${selectedRollbackHunkCount} 个 hunk。`
-          : `Rolled back ${selectedRollbackHunkCount} hunk(s).`
+          ? `已回滚 ${selectedRollbackHunkCount} 个代码段，已从「已合并」移除。`
+          : `Rolled back ${selectedRollbackHunkCount} block(s). They left the Merged section.`
         : isChinese
-          ? `已回滚 ${selectedRollbackFileCount} 个文件。`
-          : `Rolled back ${selectedRollbackFileCount} file(s).`,
+          ? `已回滚 ${selectedRollbackFileCount} 个文件，已回到「待合并」阶段。`
+          : `Rolled back ${selectedRollbackFileCount} file(s). They are back under Pending merge.`,
+      () => {
+        setSelectedRollbackPaths([]);
+        setSelectedRollbackHunks([]);
+      },
     );
   }, [
     activeSession,
@@ -855,17 +873,34 @@ export function CodexNewProcessWindow({
       </section>
 
       {activeTask ? (
-        <p className="codex-new-window-environment-note">
-          <span className="codex-new-window-environment-label">
-            {isChinese ? "路径" : "Paths"}:
-          </span>{" "}
-          {isChinese ? "原项目" : "Project"}{" "}
-          <code className="codex-new-window-path-inline">{activeTask.originalRoot}</code>
-          {" · "}
-          {isChinese ? "隔离副本（AI / 测试在此执行）" : "Isolated copy (AI + tests run here)"}{" "}
-          <code className="codex-new-window-path-inline">{activeTask.workspaceRoot}</code>
-        </p>
+        <section className="codex-new-window-panel">
+          <CodexNewDirectoryHierarchy
+            isChinese={isChinese}
+            title={isChinese ? "项目与克隆目录" : "Project and clone folders"}
+            roots={[
+              {
+                id: "window-project",
+                role: "project",
+                label: isChinese ? "原项目" : "Original project",
+                path: activeTask.originalRoot,
+              },
+              {
+                id: "window-clone",
+                role: "clone",
+                label: isChinese ? "隔离克隆（AI / 测试）" : "Isolated clone (AI / tests)",
+                path: activeTask.workspaceRoot,
+              },
+            ]}
+          />
+          <CodexNewDataPathsPanel
+            isChinese={isChinese}
+            dataPaths={state.dataPaths}
+            localFolderName={activeThreadRegistryEntry?.localFolderName}
+            isolatedRoot={activeThreadRegistryEntry?.isolatedRoot}
+          />
+        </section>
       ) : null}
+
       {activeTask?.environmentSummary ? (
         <p className="codex-new-window-environment-note" title={t("codexNew.window.environmentHelp", "")}>
           <span className="codex-new-window-environment-label">
@@ -903,758 +938,87 @@ export function CodexNewProcessWindow({
 
       <div className="codex-new-window-tab-panel">
       {activeTab === "review" ? (
-      <section className="codex-new-window-panel">
-        <div className="codex-new-window-section-title">
-          <ClipboardList size={14} aria-hidden />
-          {isChinese ? "审查门禁" : "Review Gate"}
-        </div>
-        <div className="codex-new-window-action-row">
-          <button
-            type="button"
-            className="codex-new-mini-button"
-            onClick={() => void handleRefresh()}
-            disabled={!activeSession || pendingAction !== null}
-          >
-            <RefreshCw size={13} aria-hidden />
-            {isChinese ? "刷新" : "Refresh"}
-          </button>
-          <button
-            type="button"
-            className="codex-new-mini-button"
-            onClick={() => void handleReview()}
-            disabled={!activeSession || pendingAction !== null}
-          >
-            <ClipboardList size={13} aria-hidden />
-            {isChinese ? "运行审查" : "Run review"}
-          </button>
-        </div>
-
-        <div className="codex-new-window-note-list">
-          <div className={`codex-new-window-note${mergeBlockedReason ? " is-warning" : ""}`}>
-            <AlertTriangle size={14} aria-hidden />
-            <span>
-              {mergeBlockedReason ??
-                (activeTask?.review?.disposition === "needsUserApproval"
-                  ? isChinese
-                    ? "审查已经通过策略检查，正在等待你决定是否合并。"
-                    : "Review passed the policy checks and is waiting for your merge decision."
-                  : isChinese
-                    ? "合并门禁已放行，选中文件后就可以合并。"
-                    : "Merge gate is clear. Select files and merge when ready.")}
-            </span>
-          </div>
-          <div className="codex-new-window-note">
-            <Shield size={14} aria-hidden />
-            <span>
-              {reviewRequired
-                ? isChinese
-                  ? "需要审查。"
-                  : "Review is required."
-                : isChinese
-                  ? "审查可选。"
-                  : "Review is optional."}{" "}
-              {testsRequired
-                ? activeTask?.hasPassingTest
-                  ? isChinese
-                    ? "已经记录了一次通过的测试。"
-                    : "A passing test run is already recorded."
-                  : isChinese
-                    ? "合并前必须有一次通过的测试。"
-                    : "A passing test run is required before merge."
-                : isChinese
-                  ? "这个任务里的测试目前只是建议项。"
-                  : "Tests are advisory for this task."}
-            </span>
-          </div>
-        </div>
-
-        {activeTask?.review ? (
-          <div className="codex-new-window-review-shell">
-            <div className="codex-new-window-review-summary">{activeTask.review.summary}</div>
-            <div className="codex-new-window-issue-list">
-              {activeTask.review.issues.map((issue, index) => (
-                <div key={`${issue.path ?? "global"}-${index}`} className={`codex-new-window-issue is-${issue.severity}`}>
-                  <div className="codex-new-window-issue-title">
-                    {humanizeIdentifier(issue.severity)}
-                    {issue.path ? ` - ${issue.path}` : ""}
-                  </div>
-                  <div className="codex-new-window-issue-detail">{issue.message}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        <p className="codex-new-window-field-hint">
-          {t(
-            "codexNew.window.testCommandHint",
-            "Examples: pnpm test, npm test, cargo test, pytest. Use the button to ask the active chat.",
-          )}
-        </p>
-        <div className="codex-new-window-inline-form">
-          <label className="codex-new-window-field">
-            <span className="codex-new-window-field-label">{isChinese ? "测试命令" : "Test command"}</span>
-            <input
-              className="codex-new-window-input"
-              value={testCommandDraft}
-              onChange={(event) => setTestCommandDraft(event.target.value)}
-              placeholder={t("codexNew.window.testCommandPlaceholder", "e.g. pnpm test")}
-            />
-          </label>
-          <button
-            type="button"
-            className="codex-new-mini-button"
-            onClick={() => void handleAskTestCommand()}
-            disabled={!activeSession || pendingAction !== null}
-          >
-            <Sparkles size={13} aria-hidden />
-            {t("codexNew.window.askTestCommand", "Ask AI for test command")}
-          </button>
-          <button
-            type="button"
-            className="codex-new-mini-button"
-            onClick={() => void handleRunTest()}
-            disabled={!activeSession || pendingAction !== null}
-          >
-            <Play size={13} aria-hidden />
-            {isChinese ? "运行测试" : "Run test"}
-          </button>
-        </div>
-        {activeTask?.suggestedTestCommands.length ? (
-          <div className="codex-new-window-chip-row">
-            {activeTask.suggestedTestCommands.map((command) => (
-              <button
-                key={command}
-                type="button"
-                className={`codex-new-window-chip${testCommandDraft === command ? " is-active" : ""}`}
-                onClick={() => setTestCommandDraft(command)}
-              >
-                {command}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {activeTask?.latestTest ? (
-          <div className="codex-new-window-test-result">
-            <div className="codex-new-window-test-meta">
-              {isChinese ? "最近测试：" : "Latest test: "}{" "}
-              {humanizeIdentifier(activeTask.latestTest.status)}
-              {activeTask.latestTest.exitCode !== null
-                ? ` (exit ${activeTask.latestTest.exitCode})`
-                : ""}
-              {" — "}
-              {activeTask.latestTest.command}
-            </div>
-            {activeTask.latestTest.failureSummary ? (
-              <pre className="codex-new-window-test-output">
-                {activeTask.latestTest.failureSummary}
-              </pre>
-            ) : null}
-            {activeTask.latestTest.stderrExcerpt ? (
-              <pre className="codex-new-window-test-output">
-                {activeTask.latestTest.stderrExcerpt}
-              </pre>
-            ) : null}
-            {!activeTask.latestTest.stderrExcerpt && activeTask.latestTest.stdoutExcerpt ? (
-              <pre className="codex-new-window-test-output">
-                {activeTask.latestTest.stdoutExcerpt}
-              </pre>
-            ) : null}
-            {!activeTask.latestTest.failureSummary &&
-            !activeTask.latestTest.stderrExcerpt &&
-            !activeTask.latestTest.stdoutExcerpt ? (
-              <div className="codex-new-window-test-output-note">
-                {isChinese
-                  ? "命令已结束但没有捕获到输出（常见于 Windows 上 Python 把报错打到 stdout，或进程瞬间退出）。可点「运行测试」重试，或到终端标签查看。"
-                  : "The command finished without captured output. Retry Run test or check the Terminal tab."}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
+        <CodexNewReviewTab
+          isChinese={isChinese}
+          activeSession={activeSession}
+          activeTask={activeTask}
+          pendingAction={pendingAction}
+          mergeBlockedReason={mergeBlockedReason}
+          reviewRequired={reviewRequired}
+          testsRequired={testsRequired}
+          handleRefresh={handleRefresh}
+          handleReview={handleReview}
+          humanizeIdentifier={humanizeIdentifier}
+          testCommandDraft={testCommandDraft}
+          setTestCommandDraft={setTestCommandDraft}
+          handleRunTest={handleRunTest}
+          handleAskTestCommand={handleAskTestCommand}
+        />
       ) : null}
 
       {activeTab === "changes" ? (
-      <>
-      <section className="codex-new-window-panel">
-        <div className="codex-new-window-section-title">
-          <CheckCheck size={14} aria-hidden />
-          {isChinese ? "变更与合并" : "Changes & merge"}
-        </div>
-        {activeTask?.workspaceRoot ? (
-          <div className="codex-new-window-note">
-            <Shield size={14} aria-hidden />
-            <span>
-              {isChinese ? "隔离克隆目录：" : "Isolated clone: "}
-              <code className="codex-new-window-path-inline">{activeTask.workspaceRoot}</code>
-            </span>
-          </div>
-        ) : null}
-        <div className="codex-new-window-note">
-          <RotateCcw size={14} aria-hidden />
-          <span>
-            {isChinese
-              ? "片段回滚测试：先展开 diff → 只勾选要撤销的 hunk（不要勾整文件）→「回滚所选」。整文件合并过的条目只能整文件回滚；只有「片段合并」过的文件才会出现可勾选的 hunk。"
-              : "Hunk rollback: expand diff, select only the hunks to undo (not the whole file), then Rollback selected. Full-file merges roll back at file level; hunk checkboxes only appear after a partial hunk merge."}
-          </span>
-        </div>
-        <div className="codex-new-window-action-row">
-          <button
-            type="button"
-            className="codex-new-mini-button"
-            onClick={() => void handleRefresh()}
-            disabled={!activeSession || pendingAction !== null}
-          >
-            <RefreshCw size={13} aria-hidden />
-            {isChinese ? "刷新变更" : "Refresh changes"}
-          </button>
-          <button
-            type="button"
-            className="codex-new-mini-button"
-            onClick={() => void handleMerge()}
-            disabled={
-              !activeSession ||
-              pendingAction !== null ||
-              !hasMergeSelection ||
-              mergeBlockedReason !== null
-            }
-          >
-            <CheckCheck size={13} aria-hidden />
-            {isChinese ? "合并所选" : "Merge selected"}
-          </button>
-          <button
-            type="button"
-            className="codex-new-mini-button"
-            onClick={() => void handleRollback()}
-            disabled={
-              !activeSession ||
-              pendingAction !== null ||
-              acceptedCount === 0 ||
-              !hasRollbackSelection
-            }
-          >
-            <RotateCcw size={13} aria-hidden />
-            {isChinese ? "回滚所选" : "Rollback selected"}
-          </button>
-        </div>
-        {mergeBlockedReason ? (
-          <div className="codex-new-window-note is-warning">
-            <AlertTriangle size={14} aria-hidden />
-            <span>{mergeBlockedReason}</span>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="codex-new-window-panel">
-        <div className="codex-new-window-section-title">
-          <CheckCheck size={14} aria-hidden />
-          {t("codexNew.window.selectiveMerge", "Selective merge")}
-        </div>
-        <div className="codex-new-window-note">
-          <Shield size={14} aria-hidden />
-          <span>
-            {t(
-              "codexNew.window.mergeModeHelp",
-              "Unmerged files: check a file to merge the whole file, or expand diff and check hunks for a partial merge. Merged files: check files or hunks to roll back into the project tree (added files are removed). One request cannot mix file-level and hunk-level merge, or file-level and hunk-level rollback.",
-            )}
-          </span>
-        </div>
-        <div className="codex-new-window-panel-meta">
-          <span>
-            {activeTask
-              ? isChinese
-                ? `${activeTask.diff.stats.changedFiles} 个变更，${mergeablePaths.length} 个未合并，${rollbackablePaths.length} 个已合并`
-                : `${activeTask.diff.stats.changedFiles} changed, ${mergeablePaths.length} unmerged, ${rollbackablePaths.length} merged`
-              : isChinese
-                ? "当前没有活动任务"
-                : "No active task"}
-          </span>
-          {mergeablePaths.length > 0 || rollbackablePaths.length > 0 ? (
-            <span className="codex-new-window-selection-actions">
-              {mergeablePaths.length > 0 ? (
-                <>
-                  <button
-                    type="button"
-                    className="codex-new-window-inline-button"
-                    onClick={() => setSelectedMergePaths(mergeablePaths)}
-                  >
-                    {isChinese ? "全选未合并" : "Select unmerged"}
-                  </button>
-                  <button
-                    type="button"
-                    className="codex-new-window-inline-button"
-                    onClick={() => setSelectedMergePaths([])}
-                  >
-                    {isChinese ? "清空合并" : "Clear merge"}
-                  </button>
-                </>
-              ) : null}
-              {rollbackablePaths.length > 0 ? (
-                <>
-                  <button
-                    type="button"
-                    className="codex-new-window-inline-button"
-                    onClick={() => setSelectedRollbackPaths(rollbackablePaths)}
-                  >
-                    {isChinese ? "全选已合并" : "Select merged"}
-                  </button>
-                  <button
-                    type="button"
-                    className="codex-new-window-inline-button"
-                    onClick={() => {
-                      setSelectedRollbackPaths([]);
-                      setSelectedRollbackHunks([]);
-                    }}
-                  >
-                    {isChinese ? "清空回滚" : "Clear rollback"}
-                  </button>
-                </>
-              ) : null}
-            </span>
-          ) : null}
-        </div>
-        {activeTask?.diff.riskMarkers.length ? (
-          <div className="codex-new-window-risk-list">
-            {activeTask.diff.riskMarkers.map((marker, index) => (
-              <div key={`${marker.kind}-${marker.path ?? "global"}-${index}`} className="codex-new-window-risk">
-                <AlertTriangle size={13} aria-hidden />
-                <span>
-                  {marker.path ? `${marker.path}: ` : ""}
-                  {marker.message}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : null}
-        {activeTask?.changedFiles.length ? (
-          <div className="codex-new-window-merge-list">
-            {activeTask.changedFiles.map((file) => {
-              const diffFile = diffFilesByPath.get(file.path);
-              const diffOpen = expandedDiffs[diffToggleKey(file.path)] ?? false;
-              const mergeSelectable = !file.accepted;
-              const rollbackSelectable = file.accepted;
-              const mergeSelected = selectedMergePaths.includes(file.path);
-              const rollbackSelected = selectedRollbackPaths.includes(file.path);
-              const partialMerge = (file.mergedHunks?.length ?? 0) > 0;
-              const fileHunkCount = diffFile?.hunks.length ?? 0;
-              const selectedMergeFileHunkCount = selectedMergeHunks.filter(
-                (entry) => entry.path === file.path,
-              ).length;
-              const selectedRollbackFileHunkCount = selectedRollbackHunks.filter(
-                (entry) => entry.path === file.path,
-              ).length;
-              return (
-                <div key={file.path} className={`codex-new-window-merge-item${diffOpen ? " is-open" : ""}`}>
-                  <div className="codex-new-window-merge-top">
-                    <label className="codex-new-window-merge-check">
-                      <input
-                        type="checkbox"
-                        checked={file.accepted ? rollbackSelected : mergeSelected}
-                        disabled={!mergeSelectable && !rollbackSelectable}
-                        onChange={() =>
-                          file.accepted
-                            ? toggleRollbackPath(file.path)
-                            : toggleMergePath(file.path)
-                        }
-                      />
-                      <span className="codex-new-window-merge-path">{file.path}</span>
-                    </label>
-                    <div className="codex-new-window-merge-badges">
-                      <span className="codex-new-window-badge-chip">{humanizeIdentifier(file.status)}</span>
-                      {file.accepted ? (
-                        <span className="codex-new-window-badge-chip is-accepted">{isChinese ? "已合并" : "Merged"}</span>
-                      ) : selectedMergeFileHunkCount > 0 ? (
-                        <span className="codex-new-window-badge-chip is-partial">
-                          {isChinese
-                            ? `合并 ${selectedMergeFileHunkCount}/${fileHunkCount} hunk`
-                            : `Merge ${selectedMergeFileHunkCount}/${fileHunkCount} hunk(s)`}
-                        </span>
-                      ) : null}
-                      {file.accepted && selectedRollbackFileHunkCount > 0 ? (
-                        <span className="codex-new-window-badge-chip is-partial">
-                          {isChinese
-                            ? `回滚 ${selectedRollbackFileHunkCount}/${file.mergedHunks?.length ?? fileHunkCount} hunk`
-                            : `Rollback ${selectedRollbackFileHunkCount}/${file.mergedHunks?.length ?? fileHunkCount} hunk(s)`}
-                        </span>
-                      ) : null}
-                      {diffFile?.isLockfile ? (
-                        <span className="codex-new-window-badge-chip is-warning">{isChinese ? "锁文件" : "Lockfile"}</span>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="codex-new-window-inline-button"
-                        onClick={() => toggleDiff(file.path)}
-                      >
-                        {diffOpen ? (isChinese ? "隐藏 diff" : "Hide diff") : isChinese ? "查看 diff" : "Show diff"}
-                      </button>
-                    </div>
-                  </div>
-                  {diffOpen ? (
-                    <div className="codex-new-window-diff-shell">
-                      {diffFile?.hunks.length ? (
-                        diffFile.hunks.map((hunk, index) => {
-                          const hunkMerged = file.mergedHunks?.includes(index) ?? false;
-                          const hunkActionable =
-                            (mergeSelectable && !partialMerge) ||
-                            (rollbackSelectable && hunkMerged);
-                          return (
-                          <div key={`${file.path}-${index}`} className="codex-new-window-diff-block">
-                            <div className="codex-new-window-diff-header">
-                              <label className="codex-new-window-hunk-check">
-                                <input
-                                  type="checkbox"
-                                  checked={
-                                    file.accepted
-                                      ? selectedRollbackHunks.some(
-                                          (entry) =>
-                                            entry.path === file.path && entry.hunkIndex === index,
-                                        )
-                                      : isHunkSelected(file.path, index)
-                                  }
-                                  disabled={!hunkActionable}
-                                  onChange={() =>
-                                    file.accepted
-                                      ? toggleRollbackHunk(file.path, index)
-                                      : toggleMergeHunk(file.path, index)
-                                  }
-                                />
-                                <span>{hunk.header}</span>
-                              </label>
-                            </div>
-                            <div className="codex-new-window-diff-preview">
-                              {hunk.preview.map((line, lineIndex) => (
-                                <div
-                                  key={`${file.path}-${index}-${lineIndex}`}
-                                  className={`codex-new-window-diff-line${
-                                    line.startsWith("+ ") ? " is-add" : line.startsWith("- ") ? " is-del" : ""
-                                  }`}
-                                >
-                                  {line}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                        })
-                      ) : (
-                        <div className="codex-new-window-file-preview-note">
-                          {isChinese ? "暂时没有 diff 预览。" : "No diff preview available."}
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="codex-new-window-empty">
-            {isChinese ? "还没有检测到变更文件。" : "No changed files detected yet."}
-          </div>
-        )}
-      </section>
-
-      <section className="codex-new-window-panel">
-        <div className="codex-new-window-section-title">
-          <History size={14} aria-hidden />
-          {t("codexNew.window.traceback", "Edit traceback")}
-        </div>
-        <div className="codex-new-window-note">
-          <RotateCcw size={14} aria-hidden />
-          <span>
-            {t(
-              "codexNew.window.tracebackHelp",
-              "Per-file snapshots during editing. This is separate from task rollback, which only reverses merged files.",
-            )}
-          </span>
-        </div>
-        {tracebackEntries.length ? (
-          <div className="codex-new-window-traceback-list">
-            {tracebackEntries.map((entry) => (
-              <div key={`${entry.path}-${entry.revision}`} className="codex-new-window-traceback-item">
-                <div className="codex-new-window-traceback-top">
-                  <div className="codex-new-window-traceback-path">{entry.path}</div>
-                  <div className="codex-new-window-traceback-meta">
-                    {isChinese ? "修订" : "Rev"} {entry.revision} · {formatTime(entry.updatedAt)}
-                  </div>
-                </div>
-                <div className="codex-new-window-action-row">
-                  <button
-                    type="button"
-                    className="codex-new-mini-button"
-                    onClick={() => void handleTracebackRestore(entry.path, "project")}
-                    disabled={!activeSession || pendingAction !== null}
-                  >
-                    {t("codexNew.window.tracebackRestoreProject", "Restore original project")}
-                  </button>
-                  <button
-                    type="button"
-                    className="codex-new-mini-button"
-                    onClick={() => void handleTracebackRestore(entry.path, "workspace")}
-                    disabled={!activeSession || pendingAction !== null}
-                  >
-                    {t("codexNew.window.tracebackRestoreWorkspace", "Reset isolated copy")}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="codex-new-window-empty">
-            {t("codexNew.window.noTraceback", "No traceback snapshots yet.")}
-          </div>
-        )}
-      </section>
-      </>
+        <CodexNewChangesTab
+          isChinese={isChinese}
+          activeSession={activeSession}
+          activeTask={activeTask}
+          pendingAction={pendingAction}
+          hasPendingMerge={changeBuckets.pendingMerge.length > 0}
+          hasMerged={changeBuckets.merged.length > 0}
+          toggleDiff={toggleDiff}
+          selectedMergePaths={selectedMergePaths}
+          selectedMergeHunks={selectedMergeHunks}
+          toggleMergePath={toggleMergePath}
+          toggleMergeHunk={toggleMergeHunk}
+          handleMerge={handleMerge}
+          mergeBlockedReason={mergeBlockedReason}
+          selectedRollbackPaths={selectedRollbackPaths}
+          selectedRollbackHunks={selectedRollbackHunks}
+          toggleRollbackPath={toggleRollbackPath}
+          toggleRollbackHunk={toggleRollbackHunk}
+          handleRollback={handleRollback}
+          tracebackEntries={tracebackEntries}
+          formatTime={formatTime}
+          handleTracebackRestore={handleTracebackRestore}
+        />
       ) : null}
 
       {activeTab === "summary" ? (
-      <section className="codex-new-window-panel">
-        <div className="codex-new-window-section-title">
-          <FileText size={14} aria-hidden />
-          {isChinese ? "任务总结" : "Task Summary"}
-        </div>
-        <div className="codex-new-window-inline-form">
-          <label className="codex-new-window-field">
-            <span className="codex-new-window-field-label">{isChinese ? "目标" : "Goal"}</span>
-            <input
-              className="codex-new-window-input"
-              value={summaryGoalDraft}
-              onChange={(event) => setSummaryGoalDraft(event.target.value)}
-              placeholder={
-                isChinese ? "概括这次任务对应的用户目标。" : "Summarize the user's goal for this task."
-              }
-            />
-          </label>
-          <label className="codex-new-window-field is-grow">
-            <span className="codex-new-window-field-label">{isChinese ? "AI 结果" : "AI result"}</span>
-            <textarea
-              className="codex-new-window-textarea"
-              value={summaryResultDraft}
-              onChange={(event) => setSummaryResultDraft(event.target.value)}
-              placeholder={
-                isChinese ? "概括这次隔离任务实际产出的内容。" : "Summarize what the isolated task produced."
-              }
-            />
-          </label>
-          <button
-            type="button"
-            className="codex-new-mini-button"
-            onClick={() => void handleWriteSummary()}
-            disabled={!activeSession || !activeTask || pendingAction !== null}
-          >
-            <FileText size={13} aria-hidden />
-            {isChinese ? "写入总结" : "Write summary"}
-          </button>
-        </div>
-        {activeTask?.latestSummary ? (
-          <div className="codex-new-window-summary-shell">
-            <div className="codex-new-window-summary-block">
-              <div className="codex-new-window-field-label">{isChinese ? "目标" : "Goal"}</div>
-              <div className="codex-new-window-summary-text">{activeTask.latestSummary.userGoal}</div>
-            </div>
-            <div className="codex-new-window-summary-block">
-              <div className="codex-new-window-field-label">{isChinese ? "结果" : "Result"}</div>
-              <div className="codex-new-window-summary-text">{activeTask.latestSummary.aiResult}</div>
-            </div>
-            <div className="codex-new-window-summary-grid is-detail">
-              <article className="codex-new-window-summary-card">
-                <div className="codex-new-window-summary-label">{isChinese ? "文件" : "Files"}</div>
-                <div className="codex-new-window-summary-list">
-                  {activeTask.latestSummary.filesChanged.map((path) => (
-                    <div key={path}>{path}</div>
-                  ))}
-                </div>
-              </article>
-              <article className="codex-new-window-summary-card">
-                <div className="codex-new-window-summary-label">{isChinese ? "决策" : "Decisions"}</div>
-                <div className="codex-new-window-summary-list">
-                  {activeTask.latestSummary.decisions.map((entry, index) => (
-                    <div key={`${entry}-${index}`}>{entry}</div>
-                  ))}
-                </div>
-              </article>
-              <article className="codex-new-window-summary-card">
-                <div className="codex-new-window-summary-label">{isChinese ? "测试" : "Tests"}</div>
-                <div className="codex-new-window-summary-list">
-                  {activeTask.latestSummary.tests.map((entry, index) => (
-                    <div key={`${entry}-${index}`}>{entry}</div>
-                  ))}
-                </div>
-              </article>
-              <article className="codex-new-window-summary-card">
-                <div className="codex-new-window-summary-label">{isChinese ? "风险" : "Risks"}</div>
-                <div className="codex-new-window-summary-list">
-                  {activeTask.latestSummary.risks.map((entry, index) => (
-                    <div key={`${entry}-${index}`}>{entry}</div>
-                  ))}
-                </div>
-              </article>
-            </div>
-            {activeTask.latestSummary.candidateMemory.length ? (
-              <div className="codex-new-window-candidate-memory">
-                {activeTask.latestSummary.candidateMemory.map((memory, index) => (
-                  <div key={`${memory.title}-${index}`} className="codex-new-window-memory-item">
-                    <div className="codex-new-window-memory-title">{memory.title}</div>
-                    <div className="codex-new-window-memory-detail">{memory.detail}</div>
-                    {memory.evidencePaths.length ? (
-                      <div className="codex-new-window-memory-evidence">
-                        {memory.evidencePaths.join(", ")}
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {memoryCandidates.length ? (
-              <div className="codex-new-window-candidate-memory">
-                <div className="codex-new-window-field-label">
-                  {t("codexNew.window.memoryCandidates", "Candidate memory")}
-                </div>
-                {memoryCandidates.map((record) => (
-                  <div key={record.id} className="codex-new-window-memory-item is-actionable">
-                    <div className="codex-new-window-memory-top">
-                      <div>
-                        <div className="codex-new-window-memory-title">{record.candidate.title}</div>
-                        <div className="codex-new-window-memory-detail">{record.candidate.detail}</div>
-                      </div>
-                      <span className={`codex-new-window-badge-chip is-${record.status}`}>
-                        {formatMemoryStatus(record.status, isChinese)}
-                      </span>
-                    </div>
-                    {record.candidate.evidencePaths.length ? (
-                      <div className="codex-new-window-memory-evidence">
-                        {record.candidate.evidencePaths.join(", ")}
-                      </div>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="codex-new-mini-button"
-                      onClick={() => void handleApplyMemory(record.id)}
-                      disabled={
-                        !activeSession ||
-                        pendingAction !== null ||
-                        record.status === "same" ||
-                        record.status === "conflict"
-                      }
-                    >
-                      {t("codexNew.window.applyMemory", "Apply to project memory")}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <div className="codex-new-window-empty">
-            {isChinese ? "还没有写入任务总结。" : "No task summary has been written yet."}
-          </div>
-        )}
-      </section>
+        <CodexNewSummaryTab
+          isChinese={isChinese}
+          activeSession={activeSession}
+          activeTask={activeTask}
+          pendingAction={pendingAction}
+          summaryGoalDraft={summaryGoalDraft}
+          setSummaryGoalDraft={setSummaryGoalDraft}
+          summaryResultDraft={summaryResultDraft}
+          setSummaryResultDraft={setSummaryResultDraft}
+          handleWriteSummary={handleWriteSummary}
+          memoryCandidates={memoryCandidates}
+          handleApplyMemory={handleApplyMemory}
+          formatMemoryStatus={formatMemoryStatus}
+        />
       ) : null}
 
       {activeTab === "timeline" ? (
-      <section className="codex-new-window-stream">
-        <div className="codex-new-window-section-title">
-          <Workflow size={14} aria-hidden />
-          {t("codexNew.window.timeline", "Process timeline")}
-        </div>
-        {state.processEntries.length === 0 ? (
-          <div className="codex-new-window-empty">{t("codexNew.window.noTimeline", "No process timeline yet.")}</div>
-        ) : (
-          <div className="codex-new-window-list">
-            {state.processEntries.map((entry) => (
-              <article key={entry.id} className={`codex-new-window-event status-${entry.status}`}>
-                <div className="codex-new-window-event-top">
-                  <div className="codex-new-window-event-kind">
-                    <Sparkles size={12} aria-hidden />
-                    {translateProcessKind(entry.kind, isChinese)}
-                  </div>
-                  <div className="codex-new-window-event-time">{formatTime(entry.createdAt)}</div>
-                </div>
-                <h2 className="codex-new-window-event-title">{entry.title}</h2>
-                {!hasRedundantDetail(entry) ? (
-                  <p className="codex-new-window-event-detail">{entry.detail}</p>
-                ) : null}
-                {entry.files.length > 0 ? (
-                  <div className="codex-new-window-file-list">
-                    {entry.files.map((file) => {
-                      const key = filePreviewKey(entry.id, file.path);
-                      const expanded = expandedFiles[key] ?? false;
-                      const preview = previewCache[key];
-                      return (
-                        <div
-                          key={key}
-                          className={`codex-new-window-file-item${expanded ? " is-open" : ""}`}
-                        >
-                          <button
-                            type="button"
-                            className="codex-new-window-file-toggle"
-                            onClick={() => void handleToggleFile(entry.id, file.path)}
-                          >
-                            <span className="codex-new-window-file-toggle-left">
-                              <span className="codex-new-window-file-path">{file.path}</span>
-                              <span className="codex-new-window-file-hint">
-                                {preview?.status === "loading"
-                                  ? t("codexNew.window.previewLoading", "Loading preview...")
-                                  : t("codexNew.window.previewToggle", "Click to preview code")}
-                              </span>
-                            </span>
-                            <ChevronRight
-                              size={14}
-                              aria-hidden
-                              className={`codex-new-window-file-chevron${expanded ? " is-open" : ""}`}
-                            />
-                          </button>
-                          {expanded ? (
-                            <div className="codex-new-window-file-preview-shell">
-                              {preview?.status === "loading" ? (
-                                <div className="codex-new-window-file-preview-note">
-                                  {t("codexNew.window.previewLoading", "Loading preview...")}
-                                </div>
-                              ) : null}
-                              {preview?.status === "error" ? (
-                                <div className="codex-new-window-file-preview-note">{preview.message}</div>
-                              ) : null}
-                              {preview?.status === "ready" && preview.preview.status === "binary" ? (
-                                <div className="codex-new-window-file-preview-note">
-                                  {t("codexNew.window.previewBinary", "Binary file preview unavailable.")}
-                                </div>
-                              ) : null}
-                              {preview?.status === "ready" && preview.preview.status === "missing" ? (
-                                <div className="codex-new-window-file-preview-note">
-                                  {t("codexNew.window.previewMissing", "File preview unavailable.")}
-                                </div>
-                              ) : null}
-                              {preview?.status === "ready" && preview.preview.status === "ready" ? (
-                                <>
-                                  <pre className="codex-new-window-file-preview">
-                                    {preview.preview.content ||
-                                      t("codexNew.window.previewEmpty", "This file is empty.")}
-                                  </pre>
-                                  {preview.preview.truncated ? (
-                                    <div className="codex-new-window-file-preview-note">
-                                      {t("codexNew.window.previewTruncated", "Preview truncated.")}
-                                    </div>
-                                  ) : null}
-                                </>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+        <CodexNewTimelineTab
+          isChinese={isChinese}
+          activeSession={activeSession}
+          securityMode={true}
+          taskPrompt={
+            activeTask?.latestSummary?.userGoal ?? activeTask?.title ?? undefined
+          }
+          processEntries={state.processEntries}
+          expandedFiles={expandedFiles}
+          previewCache={previewCache}
+          onToggleFile={handleToggleFile}
+          filePreviewKey={filePreviewKey}
+          hasRedundantDetail={hasRedundantDetail}
+          translateProcessKind={translateProcessKind}
+          formatTime={formatTime}
+        />
       ) : null}
       </div>
         </div>
-      </div>
       </div>
 
       <CodexNewTerminalDock
@@ -1662,6 +1026,7 @@ export function CodexNewProcessWindow({
         onToggle={() => setTerminalDockOpen((current) => !current)}
         runs={state.terminalRuns}
       />
+      </div>
     </main>
   );
 }

@@ -1,17 +1,16 @@
 # CodexStudy desktop installers (public repo: standard GitHub-hosted runners are free).
-# This is the ONLY workflow that should auto-run on YangJin-Lei/codexStudy (push main / tags).
+# TEMP: auto-build on push is paused — use workflow_dispatch in Actions tab, or re-enable push below.
 # All other workflows in .github/workflows/ are upstream-only (openai/codex) and are disabled on this fork.
-# - push main / workflow_dispatch / push tag v*: Windows NSIS + macOS DMG (Linux AppImage paused)
 name: CodexStudy Release Build
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*"
   workflow_dispatch:
-
+  # Re-enable when ready to auto-build on push again:
+  # push:
+  #   branches:
+  #     - main
+  #   tags:
+  #     - "v*"
 concurrency:
   group: codexstudy-release-${{ github.ref }}
   cancel-in-progress: false
@@ -157,7 +156,8 @@ jobs:
   build-macos:
     name: macOS (DMG)
     if: github.repository == 'YangJin-Lei/codexStudy'
-    runs-on: macos-latest
+    # computer-use requires swift-tools-version 6.2; macos-latest still ships Swift 6.1.
+    runs-on: macos-26
     timeout-minutes: 360
     steps:
       - name: Checkout

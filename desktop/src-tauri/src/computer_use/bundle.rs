@@ -51,7 +51,11 @@ pub(crate) fn resolve_bundled_resources_root() -> Option<PathBuf> {
 
     search_dirs.into_iter().find_map(|dir| {
         let candidate = dir.join("computer-use");
-        if candidate.join("marketplace").join("marketplace.json").is_file() {
+        if candidate
+            .join("marketplace")
+            .join("marketplace.json")
+            .is_file()
+        {
             Some(candidate)
         } else if dir.join("marketplace").join("marketplace.json").is_file() {
             Some(dir)

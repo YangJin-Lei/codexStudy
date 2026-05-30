@@ -176,6 +176,7 @@ fn can_retry_after_disconnect(method: &str) -> bool {
             | "read_thread"
             | "read_agent_config_toml"
             | "read_workspace_file"
+            | "chat_agent_execute_tool"
             | "resume_thread"
             | "thread_live_subscribe"
             | "thread_live_unsubscribe"

@@ -6,6 +6,12 @@
   color: var(--ds-panel-header-text, var(--text-subtle));
 }
 
+.ds-panel.git-diff-panel {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: auto;
+}
+
 .git-panel-header {
   gap: 10px;
 }

@@ -9,6 +9,7 @@ import {
   mergeCodexNewChangesBackend,
   refreshCodexNewChangesBackend,
   rollbackCodexNewTaskBackend,
+  restoreCodexNewTracebackBackend,
   runCodexNewReviewBackend,
   runCodexNewTestBackend,
   writeCodexNewSummaryBackend,
@@ -18,12 +19,13 @@ import type {
   CodexNewProcessEntry,
   CodexNewSession,
   CodexNewTerminalRun,
+  CodexNewTracebackRestoreTarget,
 } from "./types";
 
 export const CODEX_NEW_STORAGE_KEY = "codex-new.frontend.state.v1";
 export const CODEX_NEW_STATE_EVENT = "codex-new:state";
 
-const emptyDataPaths: CodexNewFrontendState["dataPaths"] = {
+export const emptyCodexNewDataPaths: CodexNewFrontendState["dataPaths"] = {
   codexHome: "",
   codexNewRoot: "",
   desktopStatePath: "",
@@ -35,7 +37,7 @@ const emptyState: CodexNewFrontendState = {
   activeTask: null,
   workspaceSecurity: {},
   threadRegistry: {},
-  dataPaths: emptyDataPaths,
+  dataPaths: emptyCodexNewDataPaths,
   processEntries: [],
   terminalRuns: [],
   lastUpdatedAt: 0,
@@ -126,7 +128,7 @@ function normalizeState(value: unknown): CodexNewFrontendState {
                 )
               : [],
           }
-        : emptyDataPaths,
+        : emptyCodexNewDataPaths,
     processEntries: Array.isArray(candidate.processEntries)
       ? candidate.processEntries.map((entry) => ({
           ...entry,
@@ -429,6 +431,14 @@ export async function runCodexNewReview(
   workspaceId: string,
 ): Promise<CodexNewFrontendState> {
   return setCodexNewState(await runCodexNewReviewBackend(workspaceId));
+}
+
+export async function restoreCodexNewTraceback(
+  workspaceId: string,
+  path: string,
+  target: CodexNewTracebackRestoreTarget,
+): Promise<CodexNewFrontendState> {
+  return setCodexNewState(await restoreCodexNewTracebackBackend(workspaceId, path, target));
 }
 
 export async function mergeCodexNewChanges(

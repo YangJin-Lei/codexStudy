@@ -24,6 +24,11 @@ import type {
   DeleteModelProviderHistoryEntryResult,
 } from "../types";
 import type {
+  ChatAgentRunState,
+  ChatAgentSettings,
+  ModelCapabilityDto,
+} from "../features/codex-new/chat-agent/types";
+import type {
   CodexNewCandidateMemoryRecord,
   CodexNewFilePreview,
   CodexNewFrontendState,
@@ -251,12 +256,19 @@ export async function refreshCodexNewChangesBackend(
   return invoke<CodexNewFrontendState>("codex_new_refresh_changes", { workspaceId });
 }
 
+export type CodexNewFilePreviewRootSide = "project" | "workspace";
+
 export async function readCodexNewFilePreview(
   workspaceId: string,
   path: string,
+  rootSide?: CodexNewFilePreviewRootSide,
 ): Promise<CodexNewFilePreview> {
   return invoke<CodexNewFilePreview>("codex_new_read_file_preview", {
-    input: { workspaceId, path },
+    input: {
+      workspaceId,
+      path,
+      ...(rootSide ? { rootSide } : {}),
+    },
   });
 }
 
@@ -317,6 +329,81 @@ export async function applyCodexNewMemoryCandidatesBackend(
   return invoke<CodexNewMemoryApplyOutcome>("codex_new_apply_memory_candidates", {
     input: { workspaceId, candidateIds },
   });
+}
+
+export async function getChatAgentSettingsBackend(): Promise<ChatAgentSettings> {
+  const settings = await invoke<{
+    enginePreference: string;
+    maxTurns: number;
+    showThoughts: boolean;
+  }>("chat_agent_get_settings");
+  return {
+    enginePreference: settings.enginePreference as ChatAgentSettings["enginePreference"],
+    maxTurns: settings.maxTurns,
+    showThoughts: settings.showThoughts,
+  };
+}
+
+export async function setChatAgentSettingsBackend(
+  settings: ChatAgentSettings,
+): Promise<void> {
+  await invoke("chat_agent_set_settings", { settings });
+}
+
+export async function selectChatAgentEngineBackend(input: {
+  workspaceId: string;
+  model: string;
+  needsMcp?: boolean;
+  wantsStepCards?: boolean;
+}): Promise<{ engine: string; capability: ModelCapabilityDto }> {
+  return invoke("chat_agent_select_engine", { input });
+}
+
+export async function startChatAgentRunBackend(input: {
+  workspaceId: string;
+  prompt: string;
+  threadId?: string;
+  model?: string;
+  securityMode?: boolean;
+  maxTurns?: number;
+  accessMode?: "read-only" | "current" | "full-access";
+}): Promise<{ runId: string; status: string; engine: string }> {
+  return invoke("chat_agent_start_run", { input });
+}
+
+export async function getChatAgentRunStateBackend(
+  runId: string,
+): Promise<ChatAgentRunState> {
+  return invoke<ChatAgentRunState>("chat_agent_get_run_state", { runId });
+}
+
+export async function cancelChatAgentRunBackend(runId: string): Promise<boolean> {
+  return invoke<boolean>("chat_agent_cancel_run", { runId });
+}
+
+export async function resumeChatAgentRunBackend(
+  runId: string,
+  response: string,
+  accessMode?: "read-only" | "current" | "full-access",
+): Promise<ChatAgentRunState> {
+  return invoke<ChatAgentRunState>("chat_agent_resume_run", {
+    input: { runId, response, accessMode },
+  });
+}
+
+export async function confirmChatAgentToolBackend(
+  runId: string,
+  approved: boolean,
+): Promise<ChatAgentRunState> {
+  return invoke<ChatAgentRunState>("chat_agent_confirm_tool", {
+    input: { runId, approved },
+  });
+}
+
+export async function listChatAgentThreadRunsBackend(
+  threadId: string,
+): Promise<ChatAgentRunState[]> {
+  return invoke<ChatAgentRunState[]>("chat_agent_list_thread_runs", { threadId });
 }
 
 export async function rollbackCodexNewTaskBackend(

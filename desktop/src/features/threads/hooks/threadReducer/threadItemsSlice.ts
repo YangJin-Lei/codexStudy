@@ -32,6 +32,22 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         },
       };
     }
+    case "addUserMessage": {
+      const list = state.itemsByThread[action.threadId] ?? [];
+      const message: ConversationItem = {
+        id: `${Date.now()}-user`,
+        kind: "message",
+        role: "user",
+        text: action.text,
+      };
+      return {
+        ...state,
+        itemsByThread: {
+          ...state.itemsByThread,
+          [action.threadId]: prepareThreadItems([...list, message], { maxItemsPerThread: state.maxItemsPerThread }),
+        },
+      };
+    }
     case "appendAgentDelta": {
       const list = [...(state.itemsByThread[action.threadId] ?? [])];
       const index = list.findIndex((msg) => msg.id === action.itemId);

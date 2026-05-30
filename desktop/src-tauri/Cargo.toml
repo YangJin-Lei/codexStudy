@@ -55,6 +55,7 @@ shell-words = "1.1"
 toml_edit = "0.20.2"
 axum = { version = "0.7", default-features = false, features = ["http1", "json", "tokio"] }
 codex-new-core = { path = "../../codex-rs/codex-new-core" }
+chat-agent-core = { path = "../../codex-rs/chat-agent-core" }
 
 [target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
 tauri-plugin-updater = "2.10.0"

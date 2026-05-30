@@ -609,9 +609,8 @@ pub(crate) async fn send_user_message_core(
         Some(path) => path,
         None => resolve_workspace_path_core(workspaces, &workspace_id).await?,
     };
-    let runtime_workspace_roots = runtime_workspace_roots.unwrap_or_else(|| {
-        vec![workspace_path.clone()]
-    });
+    let runtime_workspace_roots =
+        runtime_workspace_roots.unwrap_or_else(|| vec![workspace_path.clone()]);
     let access_mode = access_mode.unwrap_or_else(|| "current".to_string());
     let sandbox_policy = match access_mode.as_str() {
         "full-access" => json!({ "type": "dangerFullAccess" }),
@@ -644,7 +643,10 @@ pub(crate) async fn send_user_message_core(
         "runtimeWorkspaceRoots".to_string(),
         json!(runtime_workspace_roots),
     );
-    params.insert("approvalPolicy".to_string(), json!(approval_policy.as_str()));
+    params.insert(
+        "approvalPolicy".to_string(),
+        json!(approval_policy.as_str()),
+    );
     params.insert("sandboxPolicy".to_string(), json!(sandbox_policy));
     params.insert("model".to_string(), json!(model));
     params.insert("effort".to_string(), json!(effort));

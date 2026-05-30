@@ -1,0 +1,87 @@
+/* Editor-like surfaces for the codex-new workbench (uses app theme tokens). */
+
+.workbench-shell {
+  --wb-shell-bg: var(--surface-messages, var(--background));
+  --wb-header-bg: var(--cm-surface-panel, var(--background-secondary));
+  --wb-panel-bg: var(--cm-surface-panel, var(--background-secondary));
+  --wb-panel-muted: var(--cm-surface-muted, var(--background-tertiary));
+  --wb-border: var(--cm-border-default, var(--border));
+  --wb-border-soft: var(--cm-border-soft, var(--border));
+  --wb-text: var(--text-strong, var(--foreground));
+  --wb-text-muted: var(--text-muted, var(--foreground-muted));
+  --wb-accent: var(--accent-primary, var(--primary));
+}
+
+.workbench-shell {
+  background: var(--wb-shell-bg);
+  color: var(--wb-text);
+}
+
+.workbench-header {
+  background: var(--wb-header-bg);
+  border-bottom: 1px solid var(--wb-border-soft);
+}
+
+.workbench-body {
+  background: var(--wb-shell-bg);
+  gap: 0;
+}
+
+.workbench-body > * {
+  min-height: 0;
+}
+
+.dual-tree-panel,
+.session-workbench,
+.sandbox-terminal {
+  min-height: 0;
+}
+
+.workbench-panel-chip.is-active {
+  background: color-mix(in srgb, var(--wb-accent) 12%, var(--wb-panel-bg));
+  border-color: color-mix(in srgb, var(--wb-accent) 35%, var(--wb-border));
+  color: var(--wb-text);
+}
+
+.workbench-refresh-button {
+  background: var(--wb-panel-bg);
+  border-color: var(--wb-border);
+  color: var(--wb-text);
+}
+
+.workbench-status-badge.is-active {
+  background: color-mix(in srgb, var(--success-foreground, #22c55e) 12%, var(--wb-panel-bg));
+}
+
+.workbench-alignment-note {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-accent) 25%, var(--wb-border-soft));
+  background: color-mix(in srgb, var(--wb-accent) 8%, var(--wb-panel-muted));
+  color: var(--wb-text);
+  font-size: 0.74rem;
+}
+
+.workbench-alignment-note-copy {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.45;
+}
+
+.workbench-alignment-note-dismiss {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--wb-text-muted);
+  cursor: pointer;
+  padding: 0.15rem;
+  border-radius: 0.25rem;
+}
+
+.workbench-alignment-note-dismiss:hover {
+  background: var(--wb-panel-bg);
+  color: var(--wb-text);
+}

@@ -1,11 +1,9 @@
 import Shield from "lucide-react/dist/esm/icons/shield";
-import TerminalSquare from "lucide-react/dist/esm/icons/terminal-square";
 import Workflow from "lucide-react/dist/esm/icons/workflow";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { ThreadSummary, WorkspaceInfo } from "@/types";
 import type { CodexNewSession, CodexNewThreadRegistryEntry } from "../types";
 import { resolveThreadTitle } from "../utils/threadLabels";
-import { CodexNewDataPathsPanel } from "./CodexNewDataPathsPanel";
 
 type CodexNewStatusCardProps = {
   hasWorkspace: boolean;
@@ -16,9 +14,7 @@ type CodexNewStatusCardProps = {
   threadsByWorkspace: Record<string, ThreadSummary[]>;
   activeSession: CodexNewSession | null;
   activeThreadRegistryEntry?: CodexNewThreadRegistryEntry | null;
-  dataPaths: import("../types").CodexNewFrontendState["dataPaths"];
-  onOpenProcessWindow: () => void | Promise<void>;
-  onOpenTerminalWindow: () => void | Promise<void>;
+  onOpenWorkbench: () => void | Promise<void>;
 };
 
 export function CodexNewStatusCard({
@@ -29,10 +25,7 @@ export function CodexNewStatusCard({
   activeThreadId,
   threadsByWorkspace,
   activeSession,
-  activeThreadRegistryEntry = null,
-  dataPaths,
-  onOpenProcessWindow,
-  onOpenTerminalWindow,
+  onOpenWorkbench,
 }: CodexNewStatusCardProps) {
   const { t, resolvedLanguage } = useI18n();
   const isChinese = resolvedLanguage === "zh-CN";
@@ -41,7 +34,6 @@ export function CodexNewStatusCard({
     activeSession?.workspaceName ??
     t("codexNew.status.awaitingSession", "No armed workspace");
   const displayThreadTitle =
-    activeThreadRegistryEntry?.threadTitle?.trim() ||
     (activeWorkspace
       ? resolveThreadTitle(threadsByWorkspace, activeWorkspace.id, activeThreadId)
       : null) ||
@@ -49,7 +41,7 @@ export function CodexNewStatusCard({
     t("codexNew.status.noThread", "No active thread");
 
   return (
-    <section className="codex-new-status-card">
+    <section className="codex-new-status-card is-sidebar-compact">
       <div className="codex-new-status-card-top">
         <div className="codex-new-status-card-title-group">
           <div className="codex-new-status-card-title">{t("codexNew.status.title", "codex-new")}</div>
@@ -60,7 +52,9 @@ export function CodexNewStatusCard({
                   "Computer control runs on your real desktop. Safe mode is disabled here until a dedicated isolated runtime is available.",
                 )
               : securityEnabled
-                ? t("codexNew.status.activeHelp", "Security mode is armed for this conversation.")
+                ? isChinese
+                  ? "已开启。目录与数据路径请在工作台查看。"
+                  : "Enabled. Open the workbench for folders and data paths."
                 : hasWorkspace
                   ? t(
                       "codexNew.status.inactiveHelp",
@@ -84,47 +78,29 @@ export function CodexNewStatusCard({
         </span>
       </div>
 
-      <div className="codex-new-status-card-meta">
-        <div className="codex-new-status-meta-row">
-          <span className="codex-new-status-meta-label">{t("codexNew.window.workspace", "Workspace")}</span>
-          <span className="codex-new-status-meta-value">{displayWorkspaceName}</span>
-        </div>
-        <div className="codex-new-status-meta-row">
-          <span className="codex-new-status-meta-label">
-            {isChinese ? "对话" : "Conversation"}
-          </span>
-          <span className="codex-new-status-meta-value">{displayThreadTitle}</span>
-        </div>
-        {activeThreadRegistryEntry?.localFolderName ? (
+      {securityEnabled ? (
+        <div className="codex-new-status-card-meta">
+          <div className="codex-new-status-meta-row">
+            <span className="codex-new-status-meta-label">{t("codexNew.window.workspace", "Workspace")}</span>
+            <span className="codex-new-status-meta-value">{displayWorkspaceName}</span>
+          </div>
           <div className="codex-new-status-meta-row">
             <span className="codex-new-status-meta-label">
-              {isChinese ? "本地目录" : "Local folder"}
+              {isChinese ? "对话" : "Conversation"}
             </span>
-            <span
-              className="codex-new-status-meta-value"
-              title={activeThreadRegistryEntry.isolatedRoot ?? undefined}
-            >
-              <code className="codex-new-window-path-inline">
-                codex-new/workspaces/{activeThreadRegistryEntry.localFolderName}
-              </code>
-            </span>
+            <span className="codex-new-status-meta-value">{displayThreadTitle}</span>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
-      {securityEnabled ? <CodexNewDataPathsPanel isChinese={isChinese} dataPaths={dataPaths} /> : null}
-
-      <div className="codex-new-status-card-actions">
-        <button type="button" className="codex-new-mini-button" onClick={() => void onOpenProcessWindow()}>
-          <Workflow size={13} aria-hidden />
-          {t("codexNew.openProcess", "Process")}
-        </button>
-        <button type="button" className="codex-new-mini-button" onClick={() => void onOpenTerminalWindow()}>
-          <TerminalSquare size={13} aria-hidden />
-          {t("codexNew.openTerminal", "Terminal")}
-        </button>
-      </div>
+      {securityEnabled ? (
+        <div className="codex-new-status-card-actions">
+          <button type="button" className="codex-new-mini-button" onClick={() => void onOpenWorkbench()}>
+            <Workflow size={13} aria-hidden />
+            {isChinese ? "工作台" : "Workbench"}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
-

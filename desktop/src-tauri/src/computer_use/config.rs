@@ -38,7 +38,10 @@ fn set_marketplace_entry(document: &mut Document, codex_home: &Path) -> Result<(
     let key = format!("marketplaces.{MARKETPLACE_NAME}");
     let mut table = Table::new();
     table.insert("source_type", value("local"));
-    table.insert("source", value(marketplace_path.to_string_lossy().to_string()));
+    table.insert(
+        "source",
+        value(marketplace_path.to_string_lossy().to_string()),
+    );
     document[&key] = Item::Table(table);
     Ok(())
 }

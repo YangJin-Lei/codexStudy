@@ -400,6 +400,10 @@ function buildPrimarySurface({
   showDebugButton,
   handleDebugClick,
 }: MainAppLayoutSurfacesContext): LayoutNodesOptions["primary"] {
+  const showChatAgentEngineSelect = activeWorkspace
+    ? !isComputerUseWorkspace(activeWorkspace)
+    : false;
+
   return {
     sidebarProps: {
       workspaces,
@@ -553,6 +557,7 @@ function buildPrimarySurface({
           onSelectCodexArgsOverride,
           accessMode,
           onSelectAccessMode,
+          showChatAgentEngineSelect,
           skills,
           appsEnabled: appSettings.experimentalAppsEnabled,
           apps,
@@ -706,6 +711,19 @@ function buildPrimarySurface({
   };
 }
 
+function buildCodexNewSecurityUiProps(
+  codexNew: MainAppLayoutSurfacesContext["codexNew"],
+  computerUseSecurityDisabled: boolean,
+) {
+  return {
+    codexNewSecurityEnabled: codexNew.securityEnabled,
+    codexNewSecurityToggleDisabled: computerUseSecurityDisabled,
+    onToggleCodexNewSecurity: computerUseSecurityDisabled
+      ? undefined
+      : codexNew.onToggleSecurity,
+  };
+}
+
 function buildGitSurface({
   appSettings,
   activeWorkspace,
@@ -727,9 +745,11 @@ function buildGitSurface({
   const computerUseSecurityDisabled = activeWorkspace
     ? isComputerUseWorkspace(activeWorkspace)
     : false;
-  const onToggleCodexNewSecurity = computerUseSecurityDisabled
-    ? undefined
-    : codexNew.onToggleSecurity;
+  const {
+    codexNewSecurityEnabled,
+    codexNewSecurityToggleDisabled,
+    onToggleCodexNewSecurity,
+  } = buildCodexNewSecurityUiProps(codexNew, computerUseSecurityDisabled);
 
   return {
     filePanelMode: gitState.filePanelMode,
@@ -753,9 +773,9 @@ function buildGitSurface({
           openAppIconById,
           selectedOpenAppId: appSettings.selectedOpenAppId,
           onSelectOpenAppId: handleSelectOpenAppId,
-          codexNewSecurityEnabled: codexNew.securityEnabled,
-          codexNewSecurityToggleDisabled: computerUseSecurityDisabled,
-          onOpenCodexNewUi: codexNew.onOpenUi,
+          codexNewSecurityEnabled,
+          codexNewSecurityToggleDisabled,
+          onOpenCodexNewUi: codexNew.onOpenProcessWindow,
           onToggleCodexNewSecurity,
         }
       : null,
@@ -773,9 +793,9 @@ function buildGitSurface({
       onRevealWorkspacePrompts: promptActions.handleRevealWorkspacePrompts,
       onRevealGeneralPrompts: promptActions.handleRevealGeneralPrompts,
       canRevealGeneralPrompts: Boolean(activeWorkspace),
-      codexNewSecurityEnabled: codexNew.securityEnabled,
-      codexNewSecurityToggleDisabled: computerUseSecurityDisabled,
-      onOpenCodexNewUi: codexNew.onOpenUi,
+      codexNewSecurityEnabled,
+      codexNewSecurityToggleDisabled,
+      onOpenCodexNewUi: codexNew.onOpenProcessWindow,
       onToggleCodexNewSecurity,
     },
     gitDiffPanelProps: {
@@ -864,18 +884,15 @@ function buildGitSurface({
       onRevertAllChanges: gitState.handleRevertAllGitChanges,
       onReviewUncommittedChanges: (workspaceId) =>
         startUncommittedReview(workspaceId ?? activeWorkspace?.id ?? null),
-      codexNewSecurityEnabled: codexNew.securityEnabled,
-      codexNewSecurityToggleDisabled: computerUseSecurityDisabled,
+      codexNewSecurityEnabled,
+      codexNewSecurityToggleDisabled,
       codexNewActiveWorkspace: activeWorkspace,
       codexNewActiveThreadId: activeThreadId,
       codexNewThreadsByWorkspace: threadsByWorkspace,
       codexNewActiveSession: codexNew.activeSession,
-      codexNewActiveThreadRegistryEntry: codexNew.activeThreadRegistryEntry,
-      codexNewDataPaths: codexNew.dataPaths,
       onOpenCodexNewUi: codexNew.onOpenUi,
       onToggleCodexNewSecurity,
       onOpenCodexNewProcessWindow: codexNew.onOpenProcessWindow,
-      onOpenCodexNewTerminalWindow: codexNew.onOpenTerminalWindow,
       commitMessage: gitState.commitMessage,
       commitMessageLoading: gitState.commitMessageLoading,
       commitMessageError: gitState.commitMessageError,

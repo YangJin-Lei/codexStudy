@@ -49,11 +49,10 @@ import { useMainAppThreadCodexState } from "@app/hooks/useMainAppThreadCodexStat
 import { useMainAppWorktreeState } from "@app/hooks/useMainAppWorktreeState";
 import { useMainAppWorkspaceActions } from "@app/hooks/useMainAppWorkspaceActions";
 import { useComputerUseControl } from "@/features/computer-use/useComputerUseControl";
-import { isComputerUseWorkspace } from "@/features/computer-use/computerUseStorage";
+import { useMainAppCodexNewWiring } from "@app/hooks/useMainAppCodexNewWiring";
 import { useMainAppWorkspaceLifecycle } from "@app/hooks/useMainAppWorkspaceLifecycle";
 import { useMainAppMobileThreadRefresh } from "@app/hooks/useMainAppMobileThreadRefresh";
 import { useHomeAccount } from "@app/hooks/useHomeAccount";
-import { useCodexNewController } from "@/features/codex-new/hooks/useCodexNewController";
 import type {
   CodexNewFocusThreadPayload,
   ComposerEditorSettings,
@@ -1628,14 +1627,10 @@ export default function MainApp() {
       : null,
   });
   const { workspaceHomeNode } = displayNodes;
-  const isComputerUseActiveWorkspace = activeWorkspace
-    ? isComputerUseWorkspace(activeWorkspace)
-    : false;
-  const codexNew = useCodexNewController({
+  const { codexNewPropsForLayout } = useMainAppCodexNewWiring({
     activeWorkspace,
     activeThreadId,
     threadsByWorkspace,
-    securityToggleDisabled: isComputerUseActiveWorkspace,
   });
   const layoutSurfaces = useMainAppLayoutSurfaces({
     appSettings: {
@@ -1761,15 +1756,7 @@ export default function MainApp() {
     handleCopyThread,
     handleToggleTerminalWithFocus,
     codexNew: {
-      securityEnabled: codexNew.isSecurityEnabled,
-      securityToggleDisabled: isComputerUseActiveWorkspace,
-      activeSession: codexNew.state.activeSession,
-      activeThreadRegistryEntry: codexNew.activeThreadRegistryEntry,
-      dataPaths: codexNew.state.dataPaths,
-      onOpenUi: codexNew.openWorkbench,
-      onToggleSecurity: codexNew.handleToggleSecurity,
-      onOpenProcessWindow: codexNew.openProcessWindow,
-      onOpenTerminalWindow: codexNew.openTerminalWindow,
+      ...codexNewPropsForLayout,
     },
     launchScriptState,
     launchScriptsState,

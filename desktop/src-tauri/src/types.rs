@@ -727,6 +727,44 @@ pub(crate) struct AppSettings {
     pub(crate) open_app_targets: Vec<OpenAppTarget>,
     #[serde(default = "default_selected_open_app_id", rename = "selectedOpenAppId")]
     pub(crate) selected_open_app_id: String,
+    #[serde(default, rename = "chatAgent")]
+    pub(crate) chat_agent: ChatAgentSettings,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ChatAgentSettings {
+    #[serde(
+        default = "default_chat_agent_engine_preference",
+        rename = "enginePreference"
+    )]
+    pub(crate) engine_preference: String,
+    #[serde(default = "default_chat_agent_max_turns", rename = "maxTurns")]
+    pub(crate) max_turns: u32,
+    #[serde(default = "default_chat_agent_show_thoughts", rename = "showThoughts")]
+    pub(crate) show_thoughts: bool,
+}
+
+fn default_chat_agent_engine_preference() -> String {
+    "auto".to_string()
+}
+
+fn default_chat_agent_max_turns() -> u32 {
+    20
+}
+
+fn default_chat_agent_show_thoughts() -> bool {
+    true
+}
+
+impl Default for ChatAgentSettings {
+    fn default() -> Self {
+        Self {
+            engine_preference: default_chat_agent_engine_preference(),
+            max_turns: default_chat_agent_max_turns(),
+            show_thoughts: default_chat_agent_show_thoughts(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1304,6 +1342,7 @@ impl Default for AppSettings {
             global_worktrees_folder: None,
             open_app_targets: default_open_app_targets(),
             selected_open_app_id: default_selected_open_app_id(),
+            chat_agent: ChatAgentSettings::default(),
         }
     }
 }

@@ -95,6 +95,21 @@ const terminalExitHub = createEventHub<TerminalExitEvent>("terminal-exit");
 const updaterCheckHub = createEventHub<void>("updater-check");
 const trayOpenThreadHub = createEventHub<TrayOpenThreadPayload>("tray-open-thread");
 const codexNewFocusThreadHub = createEventHub<CodexNewFocusThreadPayload>("codex-new-focus-thread");
+const chatAgentRunUpdatedHub = createEventHub<import("../features/codex-new/chat-agent/types").ChatAgentRunUpdatedEvent>(
+  "chat-agent-run-updated",
+);
+const chatAgentStepAddedHub = createEventHub<import("../features/codex-new/chat-agent/types").ChatAgentStepAddedEvent>(
+  "chat-agent-step-added",
+);
+const chatAgentAwaitingUserHub = createEventHub<import("../features/codex-new/chat-agent/types").ChatAgentAwaitingUserEvent>(
+  "chat-agent-awaiting-user",
+);
+const chatAgentToolApprovalHub = createEventHub<
+  import("../features/codex-new/chat-agent/types").ChatAgentToolApprovalRequiredEvent
+>("chat-agent-tool-approval-required");
+const chatAgentFinishedHub = createEventHub<import("../features/codex-new/chat-agent/types").ChatAgentFinishedEvent>(
+  "chat-agent-finished",
+);
 const menuNewAgentHub = createEventHub<void>("menu-new-agent");
 const menuNewWorktreeAgentHub = createEventHub<void>("menu-new-worktree-agent");
 const menuNewCloneAgentHub = createEventHub<void>("menu-new-clone-agent");
@@ -180,6 +195,43 @@ export function subscribeCodexNewFocusThread(
   return codexNewFocusThreadHub.subscribe((payload) => {
     onEvent(payload);
   }, options);
+}
+
+export function subscribeChatAgentRunUpdated(
+  onEvent: (event: import("../features/codex-new/chat-agent/types").ChatAgentRunUpdatedEvent) => void,
+  options?: SubscriptionOptions,
+): Unsubscribe {
+  return chatAgentRunUpdatedHub.subscribe(onEvent, options);
+}
+
+export function subscribeChatAgentStepAdded(
+  onEvent: (event: import("../features/codex-new/chat-agent/types").ChatAgentStepAddedEvent) => void,
+  options?: SubscriptionOptions,
+): Unsubscribe {
+  return chatAgentStepAddedHub.subscribe(onEvent, options);
+}
+
+export function subscribeChatAgentAwaitingUser(
+  onEvent: (event: import("../features/codex-new/chat-agent/types").ChatAgentAwaitingUserEvent) => void,
+  options?: SubscriptionOptions,
+): Unsubscribe {
+  return chatAgentAwaitingUserHub.subscribe(onEvent, options);
+}
+
+export function subscribeChatAgentToolApprovalRequired(
+  onEvent: (
+    event: import("../features/codex-new/chat-agent/types").ChatAgentToolApprovalRequiredEvent,
+  ) => void,
+  options?: SubscriptionOptions,
+): Unsubscribe {
+  return chatAgentToolApprovalHub.subscribe(onEvent, options);
+}
+
+export function subscribeChatAgentFinished(
+  onEvent: (event: import("../features/codex-new/chat-agent/types").ChatAgentFinishedEvent) => void,
+  options?: SubscriptionOptions,
+): Unsubscribe {
+  return chatAgentFinishedHub.subscribe(onEvent, options);
 }
 
 export function subscribeMenuNewAgent(

@@ -13,6 +13,20 @@ import type {
   WorkspaceInfo,
 } from "@/types";
 import {
+  cancelChatAgentRun,
+  resumeChatAgentRun,
+  startChatAgentRun,
+} from "@/features/codex-new/chat-agent/state";
+import { cancelInFlightChatAgentRunsForThread } from "@/features/codex-new/chat-agent/chatAgentRunControl";
+import { getInFlightChatAgentRunForThread } from "@/features/codex-new/chat-agent/chatAgentRunLookup";
+import {
+  canRouteSendToChatAgent,
+  resolveAgentEngineForSend,
+  type ResolvedAgentEngine,
+} from "@/features/codex-new/chat-agent/routing";
+import { mirrorChatAgentUserMessage } from "@/features/codex-new/chat-agent/chatAgentThreadMirror";
+import { resolveChatAgentThreadSend } from "@/features/codex-new/chat-agent/threadSendAction";
+import {
   compactThread as compactThreadService,
   focusCodexNewSessionBackend,
   sendUserMessage as sendUserMessageService,
@@ -81,6 +95,11 @@ type UseThreadMessagingOptions = {
   safeMessageActivity: () => void;
   onDebug?: (entry: DebugEntry) => void;
   pushThreadErrorMessage: (threadId: string, message: string) => void;
+  onUserMessageCreated?: (
+    workspaceId: string,
+    threadId: string,
+    text: string,
+  ) => void | Promise<void>;
   ensureThreadForActiveWorkspace: () => Promise<string | null>;
   ensureThreadForWorkspace: (workspaceId: string) => Promise<string | null>;
   refreshThread: (workspaceId: string, threadId: string) => Promise<string | null>;
@@ -125,6 +144,7 @@ export function useThreadMessaging({
   safeMessageActivity,
   onDebug,
   pushThreadErrorMessage,
+  onUserMessageCreated,
   ensureThreadForActiveWorkspace,
   ensureThreadForWorkspace,
   refreshThread,
@@ -231,7 +251,8 @@ export function useThreadMessaging({
         },
       });
       try {
-        if (readCodexNewState().workspaceSecurity[workspace.id]) {
+        const isSecurityMode = Boolean(readCodexNewState().workspaceSecurity[workspace.id]);
+        if (isSecurityMode) {
           try {
             await focusCodexNewSessionBackend(workspace.id, threadId);
           } catch (error) {
@@ -249,91 +270,155 @@ export function useThreadMessaging({
         ) {
           await ensureWorkspaceRuntimeCodexArgs(workspace.id, threadId);
         }
-        const response: Record<string, unknown> = shouldSteer
-          ? (await (appMentions.length > 0
-            ? steerTurnService(
-              workspace.id,
+        const routingContext = {
+          workspace,
+          model: resolvedModel ?? null,
+          shouldSteer,
+          imageCount: images.length,
+          fileCount: files.length,
+        };
+        const engine: ResolvedAgentEngine = canRouteSendToChatAgent(routingContext)
+          ? await resolveAgentEngineForSend(routingContext)
+          : "codex_core";
+
+        const startHandlers: Record<
+          ResolvedAgentEngine,
+          () => Promise<SendMessageResult>
+        > = {
+          chat_agent: async () => {
+            let sendAction = resolveChatAgentThreadSend(threadId);
+            if (sendAction.kind === "blocked") {
+              await cancelInFlightChatAgentRunsForThread(threadId);
+              sendAction = resolveChatAgentThreadSend(threadId);
+            }
+            if (sendAction.kind === "blocked") {
+              markProcessing(threadId, false);
+              setActiveTurnId(threadId, null);
+              pushThreadErrorMessage(threadId, sendAction.reason);
+              safeMessageActivity();
+              return { status: "blocked" };
+            }
+            if (sendAction.kind === "resume") {
+              mirrorChatAgentUserMessage(
+                dispatch,
+                threadId,
+                sendAction.run.runId,
+                finalText,
+              );
+              void onUserMessageCreated?.(workspace.id, threadId, finalText);
+              await resumeChatAgentRun(
+                sendAction.run.runId,
+                finalText,
+                resolvedAccessMode,
+              );
+              markProcessing(threadId, true);
+              setActiveTurnId(threadId, `chat-agent:${sendAction.run.runId}`);
+              return { status: "sent" };
+            }
+            await cancelInFlightChatAgentRunsForThread(threadId);
+            const run = await startChatAgentRun({
+              workspaceId: workspace.id,
               threadId,
-              activeTurnId ?? "",
-              finalText,
-              images,
-              files,
-              appMentions,
-            )
-            : steerTurnService(
-              workspace.id,
-              threadId,
-              activeTurnId ?? "",
-              finalText,
-              images,
-              files,
-            ))) as Record<string, unknown>
-          : (await sendUserMessageService(
-            workspace.id,
-            threadId,
-            finalText,
-            buildTurnStartPayload({
-              model: resolvedModel,
-              effort: resolvedEffort,
-              serviceTier: resolvedServiceTier,
-              collaborationMode: sanitizedCollaborationMode,
+              prompt: finalText,
+              model: resolvedModel ?? undefined,
+              securityMode: isSecurityMode,
               accessMode: resolvedAccessMode,
-              images,
-              files,
-              appMentions,
-            }),
-          )) as Record<string, unknown>;
+            });
+            mirrorChatAgentUserMessage(dispatch, threadId, run.runId, finalText);
+            void onUserMessageCreated?.(workspace.id, threadId, finalText);
+            setActiveTurnId(threadId, `chat-agent:${run.runId}`);
+            return { status: "sent" };
+          },
+          codex_core: async () => {
+            const response: Record<string, unknown> = shouldSteer
+              ? (await (appMentions.length > 0
+                ? steerTurnService(
+                  workspace.id,
+                  threadId,
+                  activeTurnId ?? "",
+                  finalText,
+                  images,
+                  files,
+                  appMentions,
+                )
+                : steerTurnService(
+                  workspace.id,
+                  threadId,
+                  activeTurnId ?? "",
+                  finalText,
+                  images,
+                  files,
+                ))) as Record<string, unknown>
+              : (await sendUserMessageService(
+                workspace.id,
+                threadId,
+                finalText,
+                buildTurnStartPayload({
+                  model: resolvedModel,
+                  effort: resolvedEffort,
+                  serviceTier: resolvedServiceTier,
+                  collaborationMode: sanitizedCollaborationMode,
+                  accessMode: resolvedAccessMode,
+                  images,
+                  files,
+                  appMentions,
+                }),
+              )) as Record<string, unknown>;
 
-        const rpcError = extractRpcErrorMessage(response);
+            const rpcError = extractRpcErrorMessage(response);
 
-        onDebug?.({
-          id: `${Date.now()}-${requestMode === "steer" ? "server-turn-steer" : "server-turn-start"}`,
-          timestamp: Date.now(),
-          source: "server",
-          label: requestMode === "steer" ? "turn/steer response" : "turn/start response",
-          payload: response,
-        });
-        if (rpcError) {
-          if (requestMode !== "steer") {
-            markProcessing(threadId, false);
-            setActiveTurnId(threadId, null);
-            pushThreadErrorMessage(threadId, `Turn failed to start: ${rpcError}`);
-            safeMessageActivity();
-            return { status: "blocked" };
-          }
-          if (isStaleSteerTurnError(rpcError)) {
-            markProcessing(threadId, false);
-            setActiveTurnId(threadId, null);
-          }
-          pushThreadErrorMessage(
-            threadId,
-            `Turn steer failed: ${rpcError}`,
-          );
-          safeMessageActivity();
-          return { status: "steer_failed" };
-        }
-        if (requestMode === "steer") {
-          const result = (response?.result ?? response) as Record<string, unknown>;
-          const steeredTurnId = asString(result?.turnId ?? result?.turn_id ?? "");
-          if (steeredTurnId) {
-            setActiveTurnId(threadId, steeredTurnId);
-          }
-          return { status: "sent" };
-        }
-        const result = (response?.result ?? response) as Record<string, unknown>;
-        const turn = (result?.turn ?? response?.turn ?? null) as
-          | Record<string, unknown>
-          | null;
-        const turnId = asString(turn?.id ?? "");
-        if (!turnId) {
-          markProcessing(threadId, false);
-          setActiveTurnId(threadId, null);
-          pushThreadErrorMessage(threadId, "Turn failed to start.");
-          safeMessageActivity();
-          return { status: "blocked" };
-        }
-        setActiveTurnId(threadId, turnId);
-        return { status: "sent" };
+            onDebug?.({
+              id: `${Date.now()}-${requestMode === "steer" ? "server-turn-steer" : "server-turn-start"}`,
+              timestamp: Date.now(),
+              source: "server",
+              label: requestMode === "steer" ? "turn/steer response" : "turn/start response",
+              payload: response,
+            });
+            if (rpcError) {
+              if (requestMode !== "steer") {
+                markProcessing(threadId, false);
+                setActiveTurnId(threadId, null);
+                pushThreadErrorMessage(threadId, `Turn failed to start: ${rpcError}`);
+                safeMessageActivity();
+                return { status: "blocked" };
+              }
+              if (isStaleSteerTurnError(rpcError)) {
+                markProcessing(threadId, false);
+                setActiveTurnId(threadId, null);
+              }
+              pushThreadErrorMessage(
+                threadId,
+                `Turn steer failed: ${rpcError}`,
+              );
+              safeMessageActivity();
+              return { status: "steer_failed" };
+            }
+            if (requestMode === "steer") {
+              const result = (response?.result ?? response) as Record<string, unknown>;
+              const steeredTurnId = asString(result?.turnId ?? result?.turn_id ?? "");
+              if (steeredTurnId) {
+                setActiveTurnId(threadId, steeredTurnId);
+              }
+              return { status: "sent" };
+            }
+            const result = (response?.result ?? response) as Record<string, unknown>;
+            const turn = (result?.turn ?? response?.turn ?? null) as
+              | Record<string, unknown>
+              | null;
+            const turnId = asString(turn?.id ?? "");
+            if (!turnId) {
+              markProcessing(threadId, false);
+              setActiveTurnId(threadId, null);
+              pushThreadErrorMessage(threadId, "Turn failed to start.");
+              safeMessageActivity();
+              return { status: "blocked" };
+            }
+            setActiveTurnId(threadId, turnId);
+            return { status: "sent" };
+          },
+        };
+
+        return await startHandlers[engine]();
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         if (requestMode !== "steer") {
@@ -374,6 +459,7 @@ export function useThreadMessaging({
       markProcessing,
       model,
       onDebug,
+      onUserMessageCreated,
       pushThreadErrorMessage,
       recordThreadActivity,
       safeMessageActivity,
@@ -503,11 +589,26 @@ export function useThreadMessaging({
       },
     });
     try {
-      const response = await interruptTurnService(
-        activeWorkspace.id,
-        activeThreadId,
-        turnId,
-      );
+      const chatAgentRunId =
+        (activeTurnId?.startsWith("chat-agent:")
+          ? activeTurnId.slice("chat-agent:".length)
+          : null) ??
+        getInFlightChatAgentRunForThread(activeThreadId)?.runId ??
+        null;
+      const engine: ResolvedAgentEngine = chatAgentRunId ? "chat_agent" : "codex_core";
+
+      const interruptHandlers: Record<ResolvedAgentEngine, () => Promise<unknown>> = {
+        chat_agent: async () => {
+          if (chatAgentRunId) {
+            await cancelChatAgentRun(chatAgentRunId);
+          }
+          await cancelInFlightChatAgentRunsForThread(activeThreadId);
+        },
+        codex_core: () =>
+          interruptTurnService(activeWorkspace.id, activeThreadId, turnId),
+      };
+
+      const response = await interruptHandlers[engine]();
       onDebug?.({
         id: `${Date.now()}-server-turn-interrupt`,
         timestamp: Date.now(),

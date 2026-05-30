@@ -1,27 +1,30 @@
 import { useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { I18nProvider, useI18n } from "@/i18n/I18nProvider";
+import { I18nProvider } from "@/i18n/I18nProvider";
+import { useCodexNewStandalonePage } from "../hooks/useCodexNewStandalonePage";
 import { useCodexNewWindowLanguage } from "../hooks/useCodexNewWindowLanguage";
-import { CodexNewProcessWindow } from "./CodexNewProcessWindow";
+import { WorkbenchShell } from "./WorkbenchShell";
 
 type CodexNewWindowAppProps = {
   kind: "process" | "terminal";
 };
 
 function CodexNewWindowScreen({ kind }: CodexNewWindowAppProps) {
-  const { t } = useI18n();
+  useCodexNewStandalonePage();
 
   useEffect(() => {
     const title =
       kind === "process"
-        ? t("codexNew.processWindow.title", "AI coding process")
-        : t("codexNew.terminalWindow.title", "CLI execution stream");
+        ? "Security Mode Workbench"
+        : "CLI execution stream";
     document.title = title;
     void getCurrentWindow().setTitle(title).catch(() => {});
-  }, [kind, t]);
+  }, [kind]);
 
   return (
-    <CodexNewProcessWindow initialTerminalDockOpen={kind === "terminal"} />
+    <div className="codex-new-standalone-root">
+      <WorkbenchShell />
+    </div>
   );
 }
 

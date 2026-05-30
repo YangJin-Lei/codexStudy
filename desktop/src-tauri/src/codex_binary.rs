@@ -13,11 +13,7 @@ pub(crate) fn bundled_codex_binary_candidates() -> &'static [&'static str] {
             "codex.exe",
         ]
     } else {
-        &[
-            "codexstudy-cli",
-            "codexstudy",
-            "codex",
-        ]
+        &["codexstudy-cli", "codexstudy", "codex"]
     }
 }
 
@@ -160,7 +156,10 @@ pub(crate) fn is_bundled_codex_bin(configured: Option<&str>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{bundled_codex_binary_candidates, find_codexstudy_sidecar_in_dir, resolve_bundled_codex_binary_from_dir};
+    use super::{
+        bundled_codex_binary_candidates, find_codexstudy_sidecar_in_dir,
+        resolve_bundled_codex_binary_from_dir,
+    };
     use std::fs;
     use std::path::Path;
     use uuid::Uuid;

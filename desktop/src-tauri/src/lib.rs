@@ -7,6 +7,7 @@ use tauri::RunEvent;
 use tauri::WindowEvent;
 
 mod backend;
+mod chat_agent;
 mod codex;
 mod codex_binary;
 mod codex_new;
@@ -106,6 +107,8 @@ pub fn run() {
     #[cfg(not(desktop))]
     let builder = tauri::Builder::default();
 
+    let builder = builder.manage(chat_agent::ChatAgentState::new());
+
     let builder = builder
         .on_window_event(|window, event| {
             if window.label() != "main" {
@@ -127,8 +130,33 @@ pub fn run() {
             {
                 eprintln!("[codexstudy] config defaults skipped: {err}");
             }
+            if let Err(err) =
+                crate::shared::provider_config_core::reconcile_legacy_qwen_direct_responses_config()
+            {
+                eprintln!("[codexstudy] qwen direct migration skipped: {err}");
+            }
             let state = state::AppState::load(&app.handle());
             app.manage(state);
+            #[cfg(desktop)]
+            {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let state = app_handle.state::<state::AppState>();
+                    if let Err(err) = crate::shared::provider_config_core::reconcile_legacy_qwen_compat_app_settings(
+                        &state.app_settings,
+                        &state.settings_path,
+                    )
+                    .await
+                    {
+                        eprintln!("[codexstudy] qwen compat settings migration skipped: {err}");
+                    }
+                    let settings = state.app_settings.lock().await.clone();
+                    let _ = crate::shared::provider_compat_bridge::ensure_running_for_app_settings(
+                        &settings,
+                    )
+                    .await;
+                });
+            }
             #[cfg(desktop)]
             {
                 let app_handle = app.handle().clone();
@@ -250,6 +278,15 @@ pub fn run() {
             codex_new::codex_new_restore_traceback,
             codex_new::codex_new_list_memory_candidates,
             codex_new::codex_new_apply_memory_candidates,
+            chat_agent::chat_agent_get_settings,
+            chat_agent::chat_agent_set_settings,
+            chat_agent::chat_agent_select_engine,
+            chat_agent::chat_agent_start_run,
+            chat_agent::chat_agent_get_run_state,
+            chat_agent::chat_agent_cancel_run,
+            chat_agent::chat_agent_resume_run,
+            chat_agent::chat_agent_confirm_tool,
+            chat_agent::chat_agent_list_thread_runs,
             codex::start_thread,
             codex::send_user_message,
             codex::turn_steer,

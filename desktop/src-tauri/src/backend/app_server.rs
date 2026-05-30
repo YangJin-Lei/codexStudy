@@ -662,9 +662,7 @@ pub(crate) fn build_codex_command_with_bin(
     args: Vec<String>,
 ) -> Result<Command, String> {
     let effective_bin = resolve_effective_codex_bin(codex_bin.as_deref());
-    let bin = effective_bin
-        .clone()
-        .unwrap_or_else(|| "codexstudy".into());
+    let bin = effective_bin.clone().unwrap_or_else(|| "codexstudy".into());
 
     let path_env = build_codex_path_env(effective_bin.as_deref());
     let mut command_args = parse_codex_args(codex_args)?;

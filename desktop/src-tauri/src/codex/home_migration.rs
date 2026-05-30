@@ -43,10 +43,7 @@ struct CodexHomeMigrationRecord {
 }
 
 fn migration_record_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|err| err.to_string())?;
+    let data_dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
     Ok(data_dir.join("codex-home-migration.json"))
 }
 
@@ -60,7 +57,10 @@ fn read_migration_record(app: &AppHandle) -> CodexHomeMigrationRecord {
     serde_json::from_slice(&bytes).unwrap_or_default()
 }
 
-fn write_migration_record(app: &AppHandle, record: &CodexHomeMigrationRecord) -> Result<(), String> {
+fn write_migration_record(
+    app: &AppHandle,
+    record: &CodexHomeMigrationRecord,
+) -> Result<(), String> {
     let path = migration_record_path(app)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
@@ -141,9 +141,8 @@ fn copy_file_if_missing(src: &Path, dst: &Path) -> Result<bool, String> {
         return Ok(false);
     }
     if let Some(parent) = dst.parent() {
-        fs::create_dir_all(parent).map_err(|err| {
-            format!("Unable to create {}: {err}", parent.display())
-        })?;
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("Unable to create {}: {err}", parent.display()))?;
     }
     fs::copy(src, dst).map_err(|err| {
         format!(
@@ -155,7 +154,11 @@ fn copy_file_if_missing(src: &Path, dst: &Path) -> Result<bool, String> {
     Ok(true)
 }
 
-fn copy_tree_merge(src: &Path, dst: &Path, stats: &mut CodexHomeMigrationImportResult) -> Result<(), String> {
+fn copy_tree_merge(
+    src: &Path,
+    dst: &Path,
+    stats: &mut CodexHomeMigrationImportResult,
+) -> Result<(), String> {
     if !src.is_dir() {
         return Ok(());
     }
@@ -164,9 +167,7 @@ fn copy_tree_merge(src: &Path, dst: &Path, stats: &mut CodexHomeMigrationImportR
         let src_path = entry.path();
         let file_name = entry.file_name();
         let dst_path = dst.join(file_name);
-        let file_type = entry
-            .file_type()
-            .map_err(|err| err.to_string())?;
+        let file_type = entry.file_type().map_err(|err| err.to_string())?;
         if file_type.is_dir() {
             copy_tree_merge(&src_path, &dst_path, stats)?;
             continue;
@@ -270,10 +271,8 @@ mod tests {
 
     #[test]
     fn count_session_rollout_files_counts_jsonl_rollouts() {
-        let root = std::env::temp_dir().join(format!(
-            "codex-migration-count-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("codex-migration-count-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let sessions = root.join("sessions/2025/01/03");
         fs::create_dir_all(&sessions).expect("create sessions dir");

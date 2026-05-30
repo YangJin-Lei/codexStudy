@@ -257,10 +257,7 @@ mod tests {
         std::env::set_var("CODEX_HOME", "/tmp/codex-global");
 
         let resolved = resolve_workspace_codex_home(&entry, None);
-        assert_eq!(
-            resolved,
-            Some(home_dir.join(DEFAULT_CODEXSTUDY_HOME_DIR))
-        );
+        assert_eq!(resolved, Some(home_dir.join(DEFAULT_CODEXSTUDY_HOME_DIR)));
 
         match prev_home {
             Some(value) => std::env::set_var("HOME", value),

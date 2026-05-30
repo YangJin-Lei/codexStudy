@@ -1,5 +1,7 @@
 use super::*;
 
+#[path = "rpc/chat_agent.rs"]
+mod chat_agent;
 #[path = "rpc/codex.rs"]
 mod codex;
 #[path = "rpc/daemon.rs"]

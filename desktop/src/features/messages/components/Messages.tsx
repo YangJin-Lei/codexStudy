@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
 import ChevronUp from "lucide-react/dist/esm/icons/chevron-up";
 import type {
@@ -9,6 +9,13 @@ import type {
 } from "../../../types";
 import { PlanReadyFollowupMessage } from "../../app/components/PlanReadyFollowupMessage";
 import { RequestUserInputMessage } from "../../app/components/RequestUserInputMessage";
+import { ChatAgentAwaitingUserBanner } from "@/features/codex-new/chat-agent/components/ChatAgentAwaitingUserBanner";
+import { ChatAgentInlineStepStrip } from "@/features/codex-new/chat-agent/components/ChatAgentInlineStepStrip";
+import { ChatAgentRunPhaseStrip } from "@/features/codex-new/chat-agent/components/ChatAgentRunPhaseStrip";
+import { ChatAgentToolApprovalBanner } from "@/features/codex-new/chat-agent/components/ChatAgentToolApprovalBanner";
+import { segmentChatAgentStepsByUserTurns } from "@/features/codex-new/chat-agent/chatAgentStepSegments";
+import { confirmChatAgentTool } from "@/features/codex-new/chat-agent/chatAgentThreadSync";
+import { useChatAgentThreadRun } from "@/features/codex-new/chat-agent/hooks/useChatAgentThreadRun";
 import { useFileLinkOpener } from "../hooks/useFileLinkOpener";
 import { formatCount, parseReasoning } from "../utils/messageRenderUtils";
 import {
@@ -71,6 +78,24 @@ export const Messages = memo(function Messages({
   onOpenThreadLink,
   onQuoteMessage,
 }: MessagesProps) {
+  const chatAgentRun = useChatAgentThreadRun(threadId);
+  const [toolApprovalBusy, setToolApprovalBusy] = useState(false);
+
+  const handleToolApproval = useCallback(
+    async (approved: boolean) => {
+      if (!chatAgentRun?.runId || toolApprovalBusy) {
+        return;
+      }
+      setToolApprovalBusy(true);
+      try {
+        await confirmChatAgentTool(chatAgentRun.runId, approved);
+      } finally {
+        setToolApprovalBusy(false);
+      }
+    },
+    [chatAgentRun?.runId, toolApprovalBusy],
+  );
+
   const activeUserInputRequestId =
     threadId && userInputRequests.length
       ? (userInputRequests.find(
@@ -130,6 +155,33 @@ export const Messages = memo(function Messages({
     onQuoteMessage,
   });
 
+  const chatAgentStepSegments = useMemo(
+    () => segmentChatAgentStepsByUserTurns(chatAgentRun?.steps ?? []),
+    [chatAgentRun?.steps],
+  );
+  const userMessageTurnById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of items) {
+      if (item.kind === "message" && item.role === "user") {
+        map.set(item.id, map.size);
+      }
+    }
+    return map;
+  }, [items]);
+  const chatAgentInFlight = Boolean(
+    chatAgentRun &&
+      [
+        "pending",
+        "preparing",
+        "planning",
+        "executing",
+        "observing",
+        "finalizing",
+        "running",
+      ].includes(chatAgentRun.status),
+  );
+  const lastUserTurnIndex = userMessageTurnById.size - 1;
+
   const planFollowupNode =
     planFollowup.shouldShow && onPlanAccept && onPlanSubmitChanges ? (
       <PlanReadyFollowupMessage
@@ -147,20 +199,35 @@ export const Messages = memo(function Messages({
   const renderItem = (item: ConversationItem) => {
     if (item.kind === "message") {
       const isCopied = copiedMessageId === item.id;
+      const userTurnIndex =
+        item.role === "user" ? userMessageTurnById.get(item.id) : undefined;
+      const turnSteps =
+        userTurnIndex !== undefined
+          ? (chatAgentStepSegments[userTurnIndex] ?? [])
+          : [];
       return (
-        <MessageRow
-          key={item.id}
-          item={item}
-          isCopied={isCopied}
-          onCopy={handleCopyMessage}
-          onQuote={onQuoteMessage ? handleQuoteMessage : undefined}
-          codeBlockCopyUseModifier={codeBlockCopyUseModifier}
-          showMessageFilePath={showMessageFilePath}
-          workspacePath={workspacePath}
-          onOpenFileLink={openFileLink}
-          onOpenFileLinkMenu={showFileLinkMenu}
-          onOpenThreadLink={handleOpenThreadLink}
-        />
+        <div key={item.id} className="message-turn-block">
+          <MessageRow
+            item={item}
+            isCopied={isCopied}
+            onCopy={handleCopyMessage}
+            onQuote={onQuoteMessage ? handleQuoteMessage : undefined}
+            codeBlockCopyUseModifier={codeBlockCopyUseModifier}
+            showMessageFilePath={showMessageFilePath}
+            workspacePath={workspacePath}
+            onOpenFileLink={openFileLink}
+            onOpenFileLinkMenu={showFileLinkMenu}
+            onOpenThreadLink={handleOpenThreadLink}
+          />
+          {userTurnIndex !== undefined && turnSteps.length > 0 ? (
+            <ChatAgentInlineStepStrip
+              steps={turnSteps}
+              isActiveTurn={
+                chatAgentInFlight && userTurnIndex === lastUserTurnIndex
+              }
+            />
+          ) : null}
+        </div>
       );
     }
     if (item.kind === "reasoning") {
@@ -238,6 +305,7 @@ export const Messages = memo(function Messages({
       onScroll={updateAutoScroll}
     >
       <div className="messages-inner">
+        <ChatAgentRunPhaseStrip run={chatAgentRun} />
         {groupedItems.map((entry) => {
           if (entry.kind === "toolGroup") {
             const { group } = entry;
@@ -283,6 +351,15 @@ export const Messages = memo(function Messages({
         })}
         {planFollowupNode}
         {userInputNode}
+        {chatAgentRun ? (
+          <ChatAgentToolApprovalBanner
+            run={chatAgentRun}
+            busy={toolApprovalBusy}
+            onAllow={() => void handleToolApproval(true)}
+            onDeny={() => void handleToolApproval(false)}
+          />
+        ) : null}
+        {chatAgentRun ? <ChatAgentAwaitingUserBanner run={chatAgentRun} /> : null}
         <WorkingIndicator
           isThinking={isThinking}
           processingStartedAt={processingStartedAt}

@@ -79,6 +79,7 @@ type ComposerProps = {
   onSelectCodexArgsOverride?: (value: string | null) => void;
   accessMode: "read-only" | "current" | "full-access";
   onSelectAccessMode: (mode: "read-only" | "current" | "full-access") => void;
+  showChatAgentEngineSelect?: boolean;
   skills: { name: string; description?: string }[];
   apps: AppOption[];
   prompts: CustomPromptOption[];
@@ -191,6 +192,7 @@ export const Composer = memo(function Composer({
   onSelectCodexArgsOverride,
   accessMode,
   onSelectAccessMode,
+  showChatAgentEngineSelect = false,
   skills,
   apps,
   prompts,
@@ -716,6 +718,7 @@ export const Composer = memo(function Composer({
       />
       <ComposerMetaBar
         disabled={disabled}
+        showChatAgentEngineSelect={showChatAgentEngineSelect}
         collaborationModes={collaborationModes}
         selectedCollaborationModeId={selectedCollaborationModeId}
         onSelectCollaborationMode={onSelectCollaborationMode}

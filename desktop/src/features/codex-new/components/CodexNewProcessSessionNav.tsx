@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
 import ChevronRight from "lucide-react/dist/esm/icons/chevron-right";
 import { formatRelativeTimeShort } from "@/utils/time";
@@ -67,18 +67,6 @@ export function CodexNewProcessSessionNav({
         .sort((left, right) => right.updatedAt - left.updatedAt),
     [sessions],
   );
-  const rowRefs = useRef<Record<string, HTMLLIElement | null>>({});
-
-  useEffect(() => {
-    if (!activeThreadId) {
-      return;
-    }
-    rowRefs.current[activeThreadId]?.scrollIntoView({
-      block: "nearest",
-      behavior: "smooth",
-    });
-  }, [activeThreadId, sortedSessions]);
-
   if (sortedSessions.length === 0) {
     return (
       <aside className="codex-new-process-session-nav" aria-label={isChinese ? "隔离会话" : "Isolated sessions"}>
@@ -111,13 +99,7 @@ export function CodexNewProcessSessionNav({
             const primaryLabel = sessionNavPrimaryLabel(entry, isChinese);
             const secondaryLabel = sessionNavSecondaryLabel(entry, isChinese);
             return (
-              <li
-                key={entry.threadId}
-                className="codex-new-process-session-nav-row"
-                ref={(element) => {
-                  rowRefs.current[entry.threadId] = element;
-                }}
-              >
+              <li key={entry.threadId} className="codex-new-process-session-nav-row">
                 <button
                   type="button"
                   className={`codex-new-process-session-nav-item${isActive ? " is-active" : ""}`}
@@ -127,7 +109,12 @@ export function CodexNewProcessSessionNav({
                 >
                   <span className="codex-new-process-session-nav-item-title">{primaryLabel}</span>
                   {secondaryLabel ? (
-                    <span className="codex-new-process-session-nav-item-meta">{secondaryLabel}</span>
+                    <span
+                      className="codex-new-process-session-nav-item-meta"
+                      title={entry.isolatedRoot ?? undefined}
+                    >
+                      {secondaryLabel}
+                    </span>
                   ) : null}
                   {relativeTime ? (
                     <span className="codex-new-process-session-nav-item-meta">

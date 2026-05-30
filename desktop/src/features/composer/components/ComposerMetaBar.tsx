@@ -2,9 +2,11 @@ import type { CSSProperties } from "react";
 import { BrainCog, SlidersHorizontal, Zap } from "lucide-react";
 import type { AccessMode, ServiceTier, ThreadTokenUsage } from "../../../types";
 import type { CodexArgsOption } from "../../threads/utils/codexArgsProfiles";
+import { ChatAgentComposerEngineSelect } from "@/features/codex-new/chat-agent/components/ChatAgentComposerEngineSelect";
 
 type ComposerMetaBarProps = {
   disabled: boolean;
+  showChatAgentEngineSelect?: boolean;
   collaborationModes: { id: string; label: string }[];
   selectedCollaborationModeId: string | null;
   onSelectCollaborationMode: (id: string | null) => void;
@@ -26,6 +28,7 @@ type ComposerMetaBarProps = {
 
 export function ComposerMetaBar({
   disabled,
+  showChatAgentEngineSelect = false,
   collaborationModes,
   selectedCollaborationModeId,
   onSelectCollaborationMode,
@@ -198,6 +201,9 @@ export function ComposerMetaBar({
             </span>
           )}
         </div>
+        {showChatAgentEngineSelect ? (
+          <ChatAgentComposerEngineSelect disabled={disabled} />
+        ) : null}
         <div className="composer-select-wrap composer-select-wrap--effort">
           <span className="composer-icon composer-icon--effort" aria-hidden>
             <BrainCog size={14} strokeWidth={1.8} />

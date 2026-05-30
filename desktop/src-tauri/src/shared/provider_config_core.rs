@@ -224,6 +224,34 @@ struct ResolvedProviderConfig {
     aws_region: Option<String>,
 }
 
+pub(crate) struct ChatCompletionCredentials {
+    pub(crate) base_url: String,
+    pub(crate) api_key: String,
+}
+
+pub(crate) fn chat_completion_credentials_core(
+    app_settings: &AppSettings,
+) -> Result<ChatCompletionCredentials, String> {
+    let Some(codex_home) = resolve_default_codex_home() else {
+        return Err("Unable to resolve CODEX_HOME".to_string());
+    };
+    let (_, document) = config_toml_core::load_global_config_document(&codex_home)?;
+    let resolved = resolve_provider_config(&document, app_settings.model_provider_compat.as_ref());
+    let api_key = resolved
+        .api_key
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| {
+            "Model provider API key is not configured. Open Settings > Model provider.".to_string()
+        })?;
+    let base_url = resolved
+        .upstream_base_url
+        .or(resolved.effective_base_url)
+        .or(resolved.base_url)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| "Model provider base URL is not configured.".to_string())?;
+    Ok(ChatCompletionCredentials { base_url, api_key })
+}
+
 pub(crate) fn get_model_provider_settings_core(
     app_settings: &AppSettings,
 ) -> Result<ModelProviderSettingsDto, String> {
@@ -307,6 +335,67 @@ pub(crate) fn ensure_codexstudy_config_defaults() -> Result<(), String> {
         config_toml_core::persist_global_config_document(&codex_home, &document)?;
     }
     Ok(())
+}
+
+fn is_qwen_managed_provider(provider_name: Option<&str>, base_url: Option<&str>) -> bool {
+    provider_name
+        .map(str::trim)
+        .is_some_and(|name| name.eq_ignore_ascii_case("qwen"))
+        || base_url
+            .map(str::trim)
+            .is_some_and(|url| url.to_ascii_lowercase().contains("dashscope.aliyuncs.com"))
+}
+
+/// Migrates legacy Qwen configs that still pointed at the local compatibility bridge.
+pub(crate) fn reconcile_legacy_qwen_direct_responses_config() -> Result<bool, String> {
+    let Some(codex_home) = resolve_default_codex_home() else {
+        return Ok(false);
+    };
+    let (existed, mut document) = config_toml_core::load_global_config_document(&codex_home)?;
+    if !existed {
+        return Ok(false);
+    }
+    if config_toml_core::read_top_level_string(&document, "model_provider").as_deref()
+        != Some(MANAGED_PROVIDER_ID)
+    {
+        return Ok(false);
+    }
+    let Some(provider) = read_provider_table(&document, MANAGED_PROVIDER_ID) else {
+        return Ok(false);
+    };
+    let provider_name = read_table_string(provider, "name");
+    let base_url = read_table_string(provider, "base_url");
+    if !is_qwen_managed_provider(provider_name.as_deref(), base_url.as_deref()) {
+        return Ok(false);
+    }
+    let Some(base_url) = base_url else {
+        return Ok(false);
+    };
+    if !provider_compat_bridge::is_local_bridge_base_url(&base_url) {
+        return Ok(false);
+    }
+
+    let provider = replace_provider_table(&mut document, MANAGED_PROVIDER_ID)?;
+    set_table_string(provider, "base_url", Some(DEFAULT_QWEN_BASE_URL));
+    config_toml_core::persist_global_config_document(&codex_home, &document)?;
+    Ok(true)
+}
+
+pub(crate) async fn reconcile_legacy_qwen_compat_app_settings(
+    app_settings: &Mutex<AppSettings>,
+    settings_path: &PathBuf,
+) -> Result<bool, String> {
+    let mut settings = app_settings.lock().await;
+    if settings
+        .model_provider_compat
+        .as_ref()
+        .is_some_and(|compat| compat.kind == ModelProviderCompatKind::Qwen)
+    {
+        settings.model_provider_compat = None;
+        write_settings(settings_path, &settings)?;
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 pub(crate) async fn save_model_provider_settings_core<F, Fut>(
@@ -1215,7 +1304,8 @@ fn populate_managed_provider_table(
         ),
         ModelProviderPreset::Qwen => (
             "Qwen".to_string(),
-            provider_compat_bridge::base_url_for_kind(ModelProviderCompatKind::Qwen),
+            normalized_string(input.base_url.as_deref())
+                .unwrap_or_else(|| DEFAULT_QWEN_BASE_URL.to_string()),
             false,
         ),
         ModelProviderPreset::Doubao => (
@@ -1341,12 +1431,7 @@ fn apply_provider_compat_settings(
                 .unwrap_or_else(|| DEFAULT_DEEPSEEK_BASE_URL.to_string()),
             supports_image_input: None,
         }),
-        ModelProviderPreset::Qwen => Some(ModelProviderCompatSettings {
-            kind: ModelProviderCompatKind::Qwen,
-            upstream_base_url: normalized_string(input.base_url.as_deref())
-                .unwrap_or_else(|| DEFAULT_QWEN_BASE_URL.to_string()),
-            supports_image_input: None,
-        }),
+        ModelProviderPreset::Qwen => None,
         ModelProviderPreset::Doubao => Some(ModelProviderCompatSettings {
             kind: ModelProviderCompatKind::Doubao,
             upstream_base_url: normalized_string(input.base_url.as_deref())
@@ -1617,6 +1702,64 @@ wire_api = "responses"
         assert_eq!(settings.preset, ModelProviderPreset::Qwen);
         assert_eq!(settings.auth_mode, ModelProviderAuthMode::ApiKey);
         assert!(settings.api_key_configured);
+    }
+
+    #[test]
+    fn save_qwen_uses_direct_dashscope_responses() {
+        let mut document = Document::new();
+        apply_settings_to_document(
+            &mut document,
+            &SaveModelProviderSettingsInput {
+                preset: ModelProviderPreset::Qwen,
+                provider_name: None,
+                base_url: None,
+                auth_mode: None,
+                api_key: Some("sk-qwen".to_string()),
+                aws_profile: None,
+                aws_region: None,
+            },
+        )
+        .expect("save qwen provider settings");
+
+        let provider = read_provider_table(&document, MANAGED_PROVIDER_ID).expect("provider table");
+        assert_eq!(
+            read_table_string(provider, "name"),
+            Some("Qwen".to_string())
+        );
+        assert_eq!(
+            read_table_string(provider, "base_url"),
+            Some(DEFAULT_QWEN_BASE_URL.to_string())
+        );
+
+        let mut app_settings = AppSettings::default();
+        apply_provider_compat_settings(
+            &mut app_settings,
+            &SaveModelProviderSettingsInput {
+                preset: ModelProviderPreset::Qwen,
+                provider_name: None,
+                base_url: None,
+                auth_mode: None,
+                api_key: Some("sk-qwen".to_string()),
+                aws_profile: None,
+                aws_region: None,
+            },
+        )
+        .expect("apply qwen compat settings");
+        assert!(app_settings.model_provider_compat.is_none());
+
+        let settings = read_settings_from_document(&document, None);
+        assert_eq!(settings.preset, ModelProviderPreset::Qwen);
+        assert_eq!(
+            settings.connection_mode,
+            ModelProviderConnectionMode::Direct
+        );
+        assert_eq!(settings.base_url.as_deref(), Some(DEFAULT_QWEN_BASE_URL));
+        assert_eq!(
+            settings.effective_base_url.as_deref(),
+            Some(DEFAULT_QWEN_BASE_URL)
+        );
+        assert!(settings.bridge_base_url.is_none());
+        assert!(settings.upstream_base_url.is_none());
     }
 
     #[test]

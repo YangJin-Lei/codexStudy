@@ -24,6 +24,10 @@ import { useThreadStatus } from "./useThreadStatus";
 import { useThreadUserInput } from "./useThreadUserInput";
 import { useThreadTitleAutogeneration } from "./useThreadTitleAutogeneration";
 import { useDetachedReviewTracking } from "./useDetachedReviewTracking";
+import { useChatAgentThreadLifecycle } from "@/features/codex-new/chat-agent/hooks/useChatAgentThreadLifecycle";
+import { useChatAgentThreadMirror } from "@/features/codex-new/chat-agent/hooks/useChatAgentThreadMirror";
+import { useChatAgentThreadItemsPersistence } from "@/features/codex-new/chat-agent/hooks/useChatAgentThreadItemsPersistence";
+import { useChatAgentThreadSync } from "@/features/codex-new/chat-agent/hooks/useChatAgentThreadSync";
 import {
   archiveThread as archiveThreadService,
   readThread as readThreadService,
@@ -789,6 +793,7 @@ export function useThreads({
     safeMessageActivity,
     onDebug,
     pushThreadErrorMessage,
+    onUserMessageCreated,
     ensureThreadForActiveWorkspace,
     ensureThreadForWorkspace,
     refreshThread,
@@ -797,6 +802,23 @@ export function useThreads({
     registerDetachedReviewChild,
     renameThread,
   });
+
+  useChatAgentThreadLifecycle({
+    markProcessing,
+  });
+
+  useChatAgentThreadMirror({
+    activeThreadId,
+    dispatch,
+  });
+
+  useChatAgentThreadItemsPersistence({
+    activeThreadId,
+    itemsByThread: state.itemsByThread,
+    dispatch,
+  });
+
+  useChatAgentThreadSync(activeThreadId);
 
   useEffect(() => {
     if (typeof window === "undefined") {
